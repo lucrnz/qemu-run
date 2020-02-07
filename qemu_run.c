@@ -4,6 +4,29 @@
 #include <ctype.h>
 #define BUFFER_MAX 1048576
 
+typedef struct {
+	char* System;
+	char* CpuType;
+	char* MemorySize;
+	char* Acceleration;
+	char* DisplayDriver;
+	char* SoundDriver;
+	char* Boot;
+	char* ForwardPorts; //@TODO 🤣
+	char* HardDiskVirtio;
+	char* MonitorPort;
+	char* SharedFolder;
+	char* NetworkDriver;
+	char* RngDevice;
+	char* HostVideoAcceleration;
+	char* CDRomISO;
+	char* HardDisk;
+} config_t;
+
+inline void copy_char_chunk(const char* src_ptr, char* dest_ptr, size_t data_length) {
+	for (size_t i = 0; i < data_length; i++) *(dest_ptr + i) = *(src_ptr + i);
+}
+
 size_t cstr_trim_right(const char* cstr, const size_t length) {
 	size_t difference = 0;
 	for (size_t i = length - 1; i < length; i--) {

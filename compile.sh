@@ -1,7 +1,13 @@
 #!/bin/bash
 CC=$(which gcc)
-CFLAGS="-O3 -march=native -mtune=native"
+CFLAGS="-O2 -s -march=native -mtune=native"
 #CFLAGS="-g -O0 -mtune=generic"
-CSTD="-std=c2x -pedantic -Werror"
+CSTD="-std=c99 -pedantic -Werror"
 
-$CC $CSTD $CFLAGS qemu_run.c -o qemu_run
+call_cc() {
+	$CC $CSTD $CFLAGS $@
+}
+
+call_cc qemu_run -o qemu_run.bin
+
+
