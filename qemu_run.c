@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#include "lucie_map/map.h"
+
 #define BUFFER_MAX 1048576
 
 typedef struct {
@@ -99,7 +101,16 @@ int read_config(const char* fpath) {
 }
 
 int main(int argc, char** argv) {
-	read_config("config");
+	// read_config("config");
+
+	map* my_map = map_init();
+	map_insert(my_map, (char*)"meme\0", (void*) "Yes! Memes XD\0");
+	map_insert(my_map, (char*)"linux\0", (void*) "Debian\0");
+
+	printf("meme=%s, linux=%s\n", (char*)map_find(my_map, "meme"), (char*)map_find(my_map, "linux"));
+
+	map_free(my_map);
+
 	return 0;
 }
 
