@@ -38,7 +38,7 @@ size_t cstr_trim_right(const char* cstr, const size_t length) {
 	return length - difference;
 }
 
-int read_config(const char* fpath) {
+int read_config(const char* fpath, map* map_initialized) {
 	FILE* fptr = fopen(fpath, "r");
 	if (fptr == NULL) return 1; //@TODO: error management 🤣
 
@@ -94,23 +94,21 @@ int read_config(const char* fpath) {
 
 		*(key_buffer + key_len) = 0;
 		*(value_buffer + value_len) = 0;
-		printf("k=[%s], [%s]\n", &key_buffer[0], &value_buffer[0]);
+		map_insert(map_initialized,&key_buffer[0], &value_buffer[0]);
 	}
-
 	fclose(fptr);
 }
 
 int main(int argc, char** argv) {
-	// read_config("config");
-
-	map* my_map = map_init();
-	map_insert(my_map, (char*)"meme\0", (void*) "Yes! Memes XD\0");
-	map_insert(my_map, (char*)"linux\0", (void*) "Debian\0");
-
-	printf("meme=%s, linux=%s\n", (char*)map_find(my_map, "meme"), (char*)map_find(my_map, "linux"));
-
-	map_free(my_map);
-
+	map* config = map_init();
+	read_config("config", config);
+	char* val;
+	if (map_find(config, "System", &val) == 0) {
+		printf("System=%s\n", val);
+	} else {
+		printf("Map_find returned error\n");
+	}
+	map_free(config);
 	return 0;
 }
 

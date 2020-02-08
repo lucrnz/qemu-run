@@ -5,9 +5,12 @@ CFLAGS="-O2 -s -march=native -mtune=native"
 CSTD="-std=c99 -pedantic -Werror"
 
 call_cc() {
-	$CC $CSTD $CFLAGS -L"$(pwd)" $@
+	$CC $CFLAGS $CSTD $@
 }
 
-call_cc qemu_run.c -lmap -o qemu_run.bin
+call_cc -c qemu_run.c -o qemu_run.o
+
+g++ *.o -o qemu_run.bin
+
 
 
