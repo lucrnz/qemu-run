@@ -18,19 +18,29 @@ extern "C" void map_insert(map* _m, char* key, char* value) {
 	m->insert(cpp_pair(std::string(key), std::string(value)));
 }
 
-extern "C" int map_find(map* _m, char* key, char** value_ptr) {
-	int rc = 1; // 1 = Error, 0 = OK
+extern "C" int map_find(map* _m, char* key, const char** value_ptr) {
+	int rc = 1;
 	cpp_map m = *( (cpp_map*) _m->_the_map );
 	cpp_map::iterator it;
 
 	if( (it = m.find(std::string(key))) != m.end() ) {
 		rc = 0;
+		const char* value_cstr = m.at(key).c_str();
+		*value_ptr = value_cstr;
 	}
 	return rc;
 }
 
-extern "C" void map_erease(map* _m, char* key) {
-	
+extern "C" int map_erase(map* _m, char* key) {
+	int rc = 1;
+	cpp_map m = *( (cpp_map*) _m->_the_map );
+	cpp_map::iterator it;
+
+	if( (it = m.find(std::string(key))) != m.end() ) {
+		m.erase(it);
+		rc = 0;
+	}
+	return rc;
 }
 
 extern "C" void map_free(map* m) {

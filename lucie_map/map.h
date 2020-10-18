@@ -17,7 +17,8 @@ extern "C" {
 
 map* map_init();
 void map_insert(map* m, char* key, char* value);
-int map_find(map* m, char* key, char** value_ptr);
+int map_find(map* m, char* key, const char** value_ptr);
+int map_erase(map* _m, char* key);
 void map_free(map* m);
 
 #ifdef __cplusplus

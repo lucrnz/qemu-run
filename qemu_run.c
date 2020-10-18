@@ -8,19 +8,23 @@
 
 typedef struct {
 	char* System;
+	char* UseUefi;
 	char* CpuType;
+	char* CpuCores;
 	char* MemorySize;
 	char* Acceleration;
 	char* DisplayDriver;
 	char* SoundDriver;
 	char* Boot;
-	char* ForwardPorts; //@TODO 🤣
+	char* FwdPorts;
 	char* HardDiskVirtio;
-	char* MonitorPort;
 	char* SharedFolder;
 	char* NetworkDriver;
 	char* RngDevice;
 	char* HostVideoAcceleration;
+	char* LocalTime;
+	char* Headless;
+	char* MonitorPort;
 	char* CDRomISO;
 	char* HardDisk;
 } config_t;
@@ -94,7 +98,7 @@ int read_config(const char* fpath, map* map_initialized) {
 
 		*(key_buffer + key_len) = 0;
 		*(value_buffer + value_len) = 0;
-		map_insert(map_initialized,&key_buffer[0], &value_buffer[0]);
+		map_insert(map_initialized, &key_buffer[0], &value_buffer[0]);
 	}
 	fclose(fptr);
 }
@@ -102,7 +106,7 @@ int read_config(const char* fpath, map* map_initialized) {
 int main(int argc, char** argv) {
 	map* config = map_init();
 	read_config("config", config);
-	char* val;
+	const char* val;
 	if (map_find(config, "System", &val) == 0) {
 		printf("System=%s\n", val);
 	} else {
