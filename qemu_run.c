@@ -6,29 +6,6 @@
 
 #define BUFFER_MAX 1048576
 
-typedef struct {
-	char* System;
-	char* UseUefi;
-	char* CpuType;
-	char* CpuCores;
-	char* MemorySize;
-	char* Acceleration;
-	char* DisplayDriver;
-	char* SoundDriver;
-	char* Boot;
-	char* FwdPorts;
-	char* HardDiskVirtio;
-	char* SharedFolder;
-	char* NetworkDriver;
-	char* RngDevice;
-	char* HostVideoAcceleration;
-	char* LocalTime;
-	char* Headless;
-	char* MonitorPort;
-	char* CDRomISO;
-	char* HardDisk;
-} config_t;
-
 inline void copy_char_chunk(const char* src_ptr, char* dest_ptr, size_t data_length) {
 	for (size_t i = 0; i < data_length; i++) *(dest_ptr + i) = *(src_ptr + i);
 }
@@ -42,7 +19,7 @@ size_t cstr_trim_right(const char* cstr, const size_t length) {
 	return length - difference;
 }
 
-int read_config(const char* fpath, map* map_initialized) {
+int config_load(const char* fpath, map* map_initialized) {
 	FILE* fptr = fopen(fpath, "r");
 	if (fptr == NULL) return 1; //@TODO: error management 🤣
 
@@ -103,16 +80,44 @@ int read_config(const char* fpath, map* map_initialized) {
 	fclose(fptr);
 }
 
+void config_set_default_values(map* config) {
+	map_insert(config, "System", "x64");
+	map_insert(config, "UseUefi", "No");
+	map_insert(config, "CpuType", "host");
+	map_insert(config, "MemorySize", "2G");
+	map_insert(config, "Acceleration", "Yes");
+	map_insert(config, "DisplayDriver", "virtio");
+	map_insert(config, "SoundDriver", "hda");
+	map_insert(config, "Boot", "c");
+	map_insert(config, "FwdPorts", "2222:22");
+	map_insert(config, "HardDiskVirtio", "Yes");
+	map_insert(config, "SharedFolder", "shared");
+	map_insert(config, "NetworkDriver", "virtio-net-pci");
+	map_insert(config, "RngDevice", "Yes");
+	map_insert(config, "HostVideoAcceleration", "No");
+	map_insert(config, "LocalTime", "No");
+	map_insert(config, "Headless", "No");
+	map_insert(config, "CDRomISO", "cdrom");
+	map_insert(config, "HardDisk", "disk");
+}
+
+void program_build_cmd_line(map* config) {
+	
+}
+
 int main(int argc, char** argv) {
 	map* config = map_init();
-	read_config("config", config);
+
+	config_set_default_values(config);
+	config_load("config", config);
+
 	const char* val;
 	if (map_find(config, "System", &val) == 0) {
 		printf("System=%s\n", val);
 	} else {
 		printf("Map_find returned error\n");
 	}
+
 	map_free(config);
 	return 0;
 }
-

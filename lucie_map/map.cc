@@ -13,12 +13,12 @@ extern "C" map* map_init() {
 	return m;
 }
 
-extern "C" void map_insert(map* _m, char* key, char* value) {
+extern "C" void map_insert(map* _m, const char* key, const char* value) {
 	cpp_map* m = (cpp_map*) _m->_the_map;
 	m->insert(cpp_pair(std::string(key), std::string(value)));
 }
 
-extern "C" int map_find(map* _m, char* key, const char** value_ptr) {
+extern "C" int map_find(map* _m, const char* key, const char** value_ptr) {
 	int rc = 1;
 	cpp_map m = *( (cpp_map*) _m->_the_map );
 	cpp_map::iterator it;
@@ -31,7 +31,7 @@ extern "C" int map_find(map* _m, char* key, const char** value_ptr) {
 	return rc;
 }
 
-extern "C" int map_erase(map* _m, char* key) {
+extern "C" int map_erase(map* _m, const char* key) {
 	int rc = 1;
 	cpp_map m = *( (cpp_map*) _m->_the_map );
 	cpp_map::iterator it;
@@ -43,8 +43,12 @@ extern "C" int map_erase(map* _m, char* key) {
 	return rc;
 }
 
+extern "C" size_t map_count(map* _m) {
+	cpp_map m = *( (cpp_map*) _m->_the_map );
+	return m.size()
+}
+
 extern "C" void map_free(map* m) {
 	free(m->_the_map);
 	free(m);
 }
-

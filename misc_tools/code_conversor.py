@@ -29,9 +29,12 @@ for line in code.splitlines():
 		sline = line.strip()
 		key = sline.split("['")[1].split("']")[0]
 		value = sline.split("=")[1].strip()
+		value_is_code = True
 		if value[0] == "'" and value[-1] == "'":
 			value = value.split("'", maxsplit=1)[1].split("'", maxsplit=1)[0]
+			value_is_code = False
 		values[key] = value
 		keys.append(key)
-		print(f'	char* {key};')
+		if value_is_code == False:
+			print(f'	map_insert(config, "{key}", "{value}");')
 

@@ -16,10 +16,11 @@ extern "C" {
 #endif
 
 map* map_init();
-void map_insert(map* m, char* key, char* value);
-int map_find(map* m, char* key, const char** value_ptr);
-int map_erase(map* _m, char* key);
+void map_insert(map* m, const char* key, const char* value);
+int map_find(map* m, const char* key, const char** value_ptr);
+int map_erase(map* _m, const char* key);
 void map_free(map* m);
+size_t map_count(map* m);
 
 #ifdef __cplusplus
 }
