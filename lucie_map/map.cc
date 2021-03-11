@@ -1,11 +1,14 @@
 #include <map>
 #include <iostream>
 #include "map.h"
+#include <cstring>
 
 #define cpp_map \
 	std::map<std::string, std::string>
 #define cpp_pair \
 	std::pair<std::string, std::string>
+
+int sys_set=0;
 
 extern "C" map* map_init() {
 	map* m = (map*) malloc(sizeof(map));
@@ -15,7 +18,14 @@ extern "C" map* map_init() {
 
 extern "C" void map_insert(map* _m, const char* key, const char* value) {
 	cpp_map* m = (cpp_map*) _m->_the_map;
-	m->insert(cpp_pair(std::string(key), std::string(value)));
+	std::string k = std::string(key);
+
+	cpp_map::iterator it;
+	if( (it = m->find(k)) != m->end() ) {
+		m->erase(it);
+	}
+
+	m->insert(cpp_pair(k, std::string(value)));
 }
 
 extern "C" int map_find(map* _m, const char* key, const char** value_ptr) {
@@ -45,7 +55,7 @@ extern "C" int map_erase(map* _m, const char* key) {
 
 extern "C" size_t map_count(map* _m) {
 	cpp_map m = *( (cpp_map*) _m->_the_map );
-	return m.size()
+	return m.size();
 }
 
 extern "C" void map_free(map* m) {

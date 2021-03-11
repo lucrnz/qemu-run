@@ -11,6 +11,3 @@ call_cc() {
 call_cc -c qemu_run.c -o qemu_run.o
 
 g++ *.o -o qemu_run.bin
-
-
-
