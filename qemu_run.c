@@ -34,29 +34,29 @@ int config_load(const char* fpath, map* map_initialized) {
 		char key_buffer[BUFFER_MAX];
 
 		size_t value_len = 0, key_len = 0;
-		int setting_value = 0, trimming_value_left = 0, trimming_key_left = 1;
+		int setting_key = 1, trimming_left = 1;
 
 		for (size_t i = 0; (c = line[i]) != '\0'; i++) {
 			if (c == '=') {
-				setting_value = 1;
-				trimming_value_left = 1;
+				setting_key = 0;
+				trimming_left = 1;
 				continue;
 			}
-			if (setting_value && trimming_value_left && !isspace(c)) {
-				trimming_value_left = 0;
+			if (setting_key && trimming_left && !isspace(c)) {
+				trimming_left = 0;
+				*(key_buffer + key_len) = c;
+				key_len++;
+			} else if (setting_key && !trimming_left)  {
+				*(key_buffer + key_len) = c;
+				key_len++;
+			} else if (!setting_key && trimming_left && !isspace(c)) {
+				trimming_left = 0;
 				*(value_buffer +value_len) = c;
 				value_len++;
-			} else if (setting_value && !trimming_value_left) {
+			} else if (!setting_key && !trimming_left) {
 				value_buffer[value_len] = c;
 				value_len++;
-			} else if (!setting_value && trimming_key_left && !isspace(c)) {
-				trimming_key_left = 0;
-				*(key_buffer + key_len) = c;
-				key_len++;
-			} else if (!setting_value && !trimming_key_left)  {
-				*(key_buffer + key_len) = c;
-				key_len++;
-			}
+			} 
 		}
 		*(key_buffer + key_len) = 0;
 		*(value_buffer + value_len) = 0;
@@ -68,7 +68,7 @@ int config_load(const char* fpath, map* map_initialized) {
 		*(key_buffer + key_len) = 0;
 		*(value_buffer + value_len) = 0;
 		map_insert(map_initialized, &key_buffer[0], &value_buffer[0]);
-		fprintf(stderr, "%s=%s\n", &key_buffer[0], &value_buffer[0]);
+		//fprintf(stderr, "%s=%s\n", &key_buffer[0], &value_buffer[0]);
 	}
 	fclose(fptr);
 }
