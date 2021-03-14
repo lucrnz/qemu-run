@@ -25,23 +25,12 @@ along with qemu-run; see the file LICENSE.  If not see <http://www.gnu.org/licen
 #define BUFFER_MAX 1048576
 
 #define cfg_add_kv(cfg, k, v) g_hash_table_insert(cfg, g_strdup(k), g_strdup(v));
-#define g_free_ifn_null(...) \
-    do { \
-        int i = 0;\
-        void *pta[] = {__VA_ARGS__}; \
-        for(i = 0; i < sizeof(pta)/sizeof(void*); i++) { \
-			void *x = pta[i]; \
-            if (x != NULL) { \
-				g_free(x); \
-			} \
-        } \
-    } while(0)
 
 #define log_msg(m) fprintf(stderr, "%s\n", m);
 #define print_gpl_banner() \
 	printf("qemu-run-ng. Forever beta software. Use on production on your own risk!\n"); \
     printf("This software is Free software - released under the GPLv3 License.\n"); \
-    printf("Read the LICENSE file. Or go visit https://www.gnu.org/licenses/gpl-3.0.html\n");
+    printf("Read the LICENSE file. Or go visit https://www.gnu.org/licenses/gpl-3.0.html\n\n");
 
 gboolean file_exists(const char *fpath) {
 	struct stat buffer;
@@ -144,6 +133,7 @@ gboolean config_load(const char *fpath, GHashTable *cfg) {
 }
 
 void program_get_cfg_values(GHashTable *cfg, char *vm_dir) {
+	char path_buff[PATH_MAX] = {0};
 	char nproc_str[4];
 	snprintf(nproc_str, 4, "%d", get_nprocs());
 	cfg_add_kv(cfg, "sys", "x64");
@@ -157,7 +147,6 @@ void program_get_cfg_values(GHashTable *cfg, char *vm_dir) {
 	cfg_add_kv(cfg, "boot", "c");
 	cfg_add_kv(cfg, "fwd_ports", "2222:22");
 	cfg_add_kv(cfg, "hdd_virtio", "yes");
-	cfg_add_kv(cfg, "shared", "shared");
 	cfg_add_kv(cfg, "net", "virtio-net-pci");
 	cfg_add_kv(cfg, "rng_dev", "yes");
 	cfg_add_kv(cfg, "host_video_acc", "no");
@@ -166,7 +155,13 @@ void program_get_cfg_values(GHashTable *cfg, char *vm_dir) {
 	cfg_add_kv(cfg, "vnc_pwd", "");
 	cfg_add_kv(cfg, "monitor_port", "5510");
 	
-	char path_buff[PATH_MAX];
+	snprintf(path_buff, PATH_MAX, "%s/%s", vm_dir, "shared");
+	if (g_dir_exists(path_buff)) {
+		cfg_add_kv(cfg, "shared", path_buff);
+	} else {
+		cfg_add_kv(cfg, "shared", "");
+	}
+	
 	snprintf(path_buff, PATH_MAX, "%s/%s", vm_dir, "floppy");
 	if (file_exists(path_buff)) {
 		cfg_add_kv(cfg, "floppy", path_buff);
@@ -207,6 +202,13 @@ gboolean program_build_cmd_line(GHashTable *cfg, char *vm_dir, char *vm_name, GP
 		g_ptr_array_add(cmd, g_strdup("--enable-kvm"));
 	}
 	
+	if (strcmp(vm_name, "") != 0) {
+		g_ptr_array_add(cmd, g_strdup("-name"));
+		g_ptr_array_add(cmd, g_strdup(vm_name));
+	}
+	
+	g_ptr_array_add(cmd, g_strdup("-cpu"));
+	g_ptr_array_add(cmd, g_strdup((char*)g_hash_table_lookup(cfg, "cpu")));
 	g_ptr_array_add(cmd, g_strdup("-smp"));
 	g_ptr_array_add(cmd, g_strdup((char*)g_hash_table_lookup(cfg, "cores")));
 	g_ptr_array_add(cmd, g_strdup("-m"));
@@ -254,8 +256,11 @@ gboolean program_build_cmd_line(GHashTable *cfg, char *vm_dir, char *vm_name, GP
 		g_ptr_array_add(cmd, g_strdup("virtio-rng-pci,rng=rng0"));
 	}
 
-	if (g_dir_exists((char*)g_hash_table_lookup(cfg, "shared"))) {
-		snprintf(sf_str, BUFFER_MAX, ",smb=%s", telnet_port);
+	cfg_v = g_hash_table_lookup(cfg, "shared");
+	if (strcmp((const char*) cfg_v, "") != 0) {
+		if (g_dir_exists((const char*) cfg_v)) {
+			snprintf(sf_str, BUFFER_MAX, ",smb=%s", (const char*)cfg_v);
+		}
 	}
 	
 	/* @TODO: Forward ports logic */
@@ -348,8 +353,12 @@ gboolean program_find_vm_location(int argc, char **argv, char **out_vm_name, cha
 	}
 }
 
-void g_hash_table_print(gpointer key, gpointer value, gpointer user_data) {
+void g_hash_table_print(gpointer key, gpointer value) {
 	printf("%s=%s\n", (char*) key, (char*) value);
+}
+
+void g_ptr_array_foreach_print(gpointer data, gpointer user_data) {
+	printf("%s ", (const char*) data);
 }
 
 int main(int argc, char **argv) {
@@ -357,6 +366,7 @@ int main(int argc, char **argv) {
 	char *vm_name = NULL;
 	char *vm_dir = NULL;
 	char *vm_cfg_file = NULL;
+	GPtrArray *cmd = NULL;
 	
 	if (! program_find_vm_location(argc, argv, &vm_name, &vm_dir, &vm_cfg_file)) {
 		return 1;
@@ -370,17 +380,19 @@ int main(int argc, char **argv) {
 		log_msg("Error: cannot load config.");
 		return 1;
 	}
-
-	/*gpointer k;
-	gpointer v;
-	if (g_hash_table_lookup_extended(cfg, "sys", &k, &v)) {
-		printf("sys=%s\n", (char*)v);
-	}*/
 	
-	g_hash_table_foreach(cfg, g_hash_table_print, NULL);
-	
-	g_free_ifn_null(vm_name, vm_dir, vm_cfg_file);
+	if (! program_build_cmd_line(cfg, vm_dir, vm_name, &cmd)) {
+		return 1;
+	}
 
-	//g_hash_table_destroy(cfg);
+	//g_hash_table_foreach(cfg, g_hash_table_print, NULL);
+	printf("Command line arguments:\n");
+	g_ptr_array_foreach (cmd, g_ptr_array_foreach_print, NULL);
+	printf("\n");
+	
+	g_free(vm_name); g_free(vm_dir); g_free(vm_cfg_file);
+	g_ptr_array_free(cmd, TRUE);
+	g_hash_table_destroy(cfg);
+
 	return 0;
 }
