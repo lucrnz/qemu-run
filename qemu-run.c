@@ -28,9 +28,7 @@ along with qemu-run; see the file LICENSE.  If not see <http://www.gnu.org/licen
 
 #define log_msg(m) fprintf(stderr, "%s\n", m);
 #define print_gpl_banner() \
-	printf("qemu-run-ng. Forever beta software. Use on production on your own risk!\n"); \
-    printf("This software is Free software - released under the GPLv3 License.\n"); \
-    printf("Read the LICENSE file. Or go visit https://www.gnu.org/licenses/gpl-3.0.html\n\n");
+	puts("qemu-run-ng. Forever beta software. Use on production on your own risk!\nThis software is Free software - released under the GPLv3 License.\nRead the LICENSE file. Or go visit https://www.gnu.org/licenses/gpl-3.0.html\n\n");
 
 gboolean file_exists(const char *fpath) {
 	struct stat buffer;
@@ -238,7 +236,6 @@ gboolean program_build_cmd_line(GHashTable *cfg, char *vm_dir, char *vm_name, GP
 		g_ptr_array_add(cmd, g_strdup(has_vncpwd ? "127.0.0.1:0,password" : "127.0.0.1:0" ));
 		g_ptr_array_add(cmd, g_strdup("-display"));
 		g_ptr_array_add(cmd, g_strdup("none"));
-		//g_ptr_array_add(cmd, g_strdup((char*)g_hash_table_lookup(cfg, "snd")));
 	} else {
 		if (g_hash_table_match_key_alow(cfg, "host_video_acc", "yes")) {
 			g_ptr_array_add(cmd, g_strdup("-display"));
@@ -386,9 +383,9 @@ int main(int argc, char **argv) {
 	}
 
 	//g_hash_table_foreach(cfg, g_hash_table_print, NULL);
-	printf("Command line arguments:\n");
+	puts("Command line arguments:\n");
 	g_ptr_array_foreach (cmd, g_ptr_array_foreach_print, NULL);
-	printf("\n");
+	puts("\n");
 	
 	g_free(vm_name); g_free(vm_dir); g_free(vm_cfg_file);
 	g_ptr_array_free(cmd, TRUE);

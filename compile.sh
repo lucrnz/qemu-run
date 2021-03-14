@@ -1,4 +1,6 @@
 #!/bin/bash
+# @TODO: Make an actual Makefile
+
 CC=$(which gcc)
 CFLAGS="-O2 -s -pipe -fno-plt -mtune=generic"
 #CFLAGS="-g -O0 -mtune=generic"
