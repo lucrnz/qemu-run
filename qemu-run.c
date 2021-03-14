@@ -63,10 +63,6 @@ gboolean g_hash_table_match_key_alow(GHashTable *t, gpointer k, const char *s) {
 	return res;
 }
 
-void copy_char_chunk(const char *src_ptr, char *dest_ptr, size_t data_length) {
-	for (size_t i = 0; i < data_length; i++) *(dest_ptr + i) = *(src_ptr + i);
-}
-
 size_t cstr_trim_right(const char *cstr, const size_t length) {
 	size_t difference = 0;
 	for (size_t i = length - 1; i < length; i--) {
