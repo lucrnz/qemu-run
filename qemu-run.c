@@ -1,5 +1,5 @@
 /*Copyright (C) 2021 Lucie Cupcakes <lucie_linux [at] protonmail.com>
-This file is part of qemu-run-ng <https://github.com/lucie-cupcakes/qemu-run-ng>.
+This file is part of qemu-run <https://github.com/lucie-cupcakes/qemu-run>.
 qemu-run is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free
 Software Foundation; either version 3, or (at your option) any later
@@ -28,7 +28,7 @@ along with qemu-run; see the file LICENSE.  If not see <http://www.gnu.org/licen
 
 #define log_msg(m) fprintf(stderr, "%s\n", m);
 #define print_gpl_banner() \
-	puts("qemu-run-ng. Forever beta software. Use on production on your own risk!\nThis software is Free software - released under the GPLv3 License.\nRead the LICENSE file. Or go visit https://www.gnu.org/licenses/gpl-3.0.html\n");
+	puts("qemu-run. Forever beta software. Use on production on your own risk!\nThis software is Free software - released under the GPLv3 License.\nRead the LICENSE file. Or go visit https://www.gnu.org/licenses/gpl-3.0.html\n");
 
 gboolean file_exists(const char *fpath) {
 	struct stat buffer;

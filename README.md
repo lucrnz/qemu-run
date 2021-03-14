@@ -1,5 +1,5 @@
-# qemu-run-ng
-This is the C version (aka: Blazing fast and optimized) of the uglier Python program that generates QEMU command line arguments and lets you manage your Virtual Machinnes on the Terminal.
+# qemu-run
+This is the C version (aka: Blazing fast and optimized) of the uglier Python program that generates QEMU command line arguments and lets you manage your Virtual Machines on the Terminal.
 
 Notice: I made this program for myself, I don't really have the intention to document it and/or give support, so pretty much you are on your own.
 
