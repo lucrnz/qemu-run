@@ -28,7 +28,7 @@ along with qemu-run; see the file LICENSE.  If not see <http://www.gnu.org/licen
 
 #define log_msg(m) fprintf(stderr, "%s\n", m);
 #define print_gpl_banner() \
-	puts("qemu-run-ng. Forever beta software. Use on production on your own risk!\nThis software is Free software - released under the GPLv3 License.\nRead the LICENSE file. Or go visit https://www.gnu.org/licenses/gpl-3.0.html\n\n");
+	puts("qemu-run-ng. Forever beta software. Use on production on your own risk!\nThis software is Free software - released under the GPLv3 License.\nRead the LICENSE file. Or go visit https://www.gnu.org/licenses/gpl-3.0.html\n");
 
 gboolean file_exists(const char *fpath) {
 	struct stat buffer;
@@ -350,8 +350,24 @@ void g_hash_table_print(gpointer key, gpointer value) {
 	printf("%s=%s\n", (char*) key, (char*) value);
 }
 
-void g_ptr_array_foreach_print(gpointer data, gpointer user_data) {
-	printf("%s ", (const char*) data);
+void g_ptr_array_foreach_len(gpointer data, gpointer user_data) {
+	//printf("%s ", (const char*) data);
+	size_t len_total = *(size_t*)user_data;
+	*(size_t*)user_data = len_total + strlen((const char*) data) + 1;
+}
+
+void g_ptr_array_foreach_copy(gpointer data, gpointer user_data) {
+	char *src = (char *) data;
+	char *dst = *(char **)user_data;
+
+	for (int i = 0; src[i] != '\0'; i++) {
+		*dst = src[i];
+		dst++;
+		//printf("%p = [%c]\n", dst, src[i]);
+	}
+	
+	*dst = ' '; dst++;
+	*(char **)user_data = dst;
 }
 
 int main(int argc, char **argv) {
@@ -379,13 +395,17 @@ int main(int argc, char **argv) {
 	}
 
 	//g_hash_table_foreach(cfg, g_hash_table_print, NULL);
-	puts("Command line arguments:\n");
-	g_ptr_array_foreach (cmd, g_ptr_array_foreach_print, NULL);
-	puts("\n");
-	
+	size_t cmd_final_len = 0;
+	g_ptr_array_foreach (cmd, g_ptr_array_foreach_len, &cmd_final_len);
+	char *cmd_final = malloc(sizeof(char)*cmd_final_len);
+	char *cmd_final_start = cmd_final;
+	g_ptr_array_foreach (cmd, g_ptr_array_foreach_copy, &cmd_final);
+	cmd_final_start[cmd_final_len - 1] = '\0';
+	printf("Command line arguments:\n%s\n", cmd_final_start);
+	system(cmd_final_start);
+	free(cmd_final_start);
 	g_free(vm_name); g_free(vm_dir); g_free(vm_cfg_file);
 	g_ptr_array_free(cmd, TRUE);
 	g_hash_table_destroy(cfg);
-
 	return 0;
 }
