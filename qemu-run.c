@@ -43,7 +43,7 @@ along with qemu-run; see the file LICENSE.  If not see <http://www.gnu.org/licen
     printf("This software is Free software - released under the GPLv3 License.\n"); \
     printf("Read the LICENSE file. Or go visit https://www.gnu.org/licenses/gpl-3.0.html\n");
 
-gboolean file_exists (const char *fpath) {
+gboolean file_exists(const char *fpath) {
 	struct stat buffer;
 	return (stat (fpath, &buffer) == 0) ? TRUE : FALSE;
 }
@@ -65,12 +65,12 @@ gboolean g_hash_table_match_key_alow(GHashTable *t, gpointer k, const char *s) {
 	*/
 	gboolean res = FALSE;
 	char *t_v_low;
-	gpointer t_v;
+	gpointer t_v = g_hash_table_lookup(t, k);
 	
-	if ( t_v = g_hash_table_lookup(t, k) != NULL) {
+	if (t_v != NULL) {
 		t_v_low = g_ascii_strdown(t_v, -1);		
 		res = strcmp((const char*)t_v_low, s) == 0 ? TRUE : FALSE;
-		g_free(cfg_v_low);
+		g_free(t_v_low);
 	}
 	
 	return res;
@@ -183,13 +183,16 @@ void program_get_cfg_values(GHashTable *cfg, char *vm_dir) {
 
 gboolean program_build_cmd_line(GHashTable *cfg, char *vm_dir, char *vm_name, GPtrArray **out_cmd) {
 	gboolean rc = TRUE;
-	int drive_index = 0, telnet_port = 0;
-	gpointer cfg_k, cfg_v;
+	int drive_index = 0, telnet_port = 55555; // @TODO: Get usable TCP port
+	gpointer cfg_v;
 	*out_cmd = NULL;
-	cmd = g_ptr_array_new_with_free_func(g_free);
-	char cmd_slice_buff[BUFFER_MAX];
+	GPtrArray *cmd = g_ptr_array_new_with_free_func(g_free);
+	char cmd_slice[BUFFER_MAX] = {0};
+	char sf_str[BUFFER_MAX] = {0};
+	char fwd_ports_str[BUFFER_MAX] = {0};
+	cmd_slice[0] = 0; sf_str[0] = 0;
 	
-	cfg_v = g_hash_table_lookup_extended(cfg, "sys");
+	cfg_v = g_hash_table_lookup(cfg, "sys");
 	if (strcmp((const char*)cfg_v, "x32") == 0) {
 		g_ptr_array_add(cmd, g_strdup("qemu-system-i386"));
 	} else if (strcmp((const char*)cfg_v, "x64") == 0) {
@@ -209,18 +212,88 @@ gboolean program_build_cmd_line(GHashTable *cfg, char *vm_dir, char *vm_name, GP
 	g_ptr_array_add(cmd, g_strdup("-m"));
 	g_ptr_array_add(cmd, g_strdup((char*)g_hash_table_lookup(cfg, "mem")));
 	g_ptr_array_add(cmd, g_strdup("-boot"));
-	snprintf(cmd_slice_buff, BUFFER_MAX, "order=%s", vm_dir, (char*)g_hash_table_lookup(cfg, "boot"));
-	g_ptr_array_add(cmd, g_strdup(cmd_slice_buff));
+	snprintf(cmd_slice, BUFFER_MAX, "order=%s", (char*)g_hash_table_lookup(cfg, "boot"));
+	g_ptr_array_add(cmd, g_strdup(cmd_slice));
 
 	g_ptr_array_add(cmd, g_strdup("-usb"));
 	g_ptr_array_add(cmd, g_strdup("-device"));
 	g_ptr_array_add(cmd, g_strdup("usb-tablet"));
 	
 	if (! g_hash_table_match_key_alow(cfg, "snd", "no")) {
-		g_ptr_array_add(cmd, g_strdup("--soundhw"));
+		g_ptr_array_add(cmd, g_strdup("-soundhw"));
 		g_ptr_array_add(cmd, g_strdup((char*)g_hash_table_lookup(cfg, "snd")));
 	}
 
+	g_ptr_array_add(cmd, g_strdup("-vga"));
+	g_ptr_array_add(cmd, g_strdup((char*)g_hash_table_lookup(cfg, "vga")));
+
+	if (g_hash_table_match_key_alow(cfg, "headless", "yes")) {
+		g_ptr_array_add(cmd, g_strdup("-monitor"));
+		snprintf(cmd_slice, BUFFER_MAX, "telnet:127.0.0.1:%d,server,nowait", telnet_port);
+		g_ptr_array_add(cmd, g_strdup(cmd_slice));
+		g_ptr_array_add(cmd, g_strdup("-vnc"));
+		gboolean has_vncpwd = (!strcmp((const char*)g_hash_table_lookup(cfg, "vnc_pwd"), ""));
+		g_ptr_array_add(cmd, g_strdup(has_vncpwd ? "127.0.0.1:0,password" : "127.0.0.1:0" ));
+		g_ptr_array_add(cmd, g_strdup("-display"));
+		g_ptr_array_add(cmd, g_strdup("none"));
+		//g_ptr_array_add(cmd, g_strdup((char*)g_hash_table_lookup(cfg, "snd")));
+	} else {
+		if (g_hash_table_match_key_alow(cfg, "host_video_acc", "yes")) {
+			g_ptr_array_add(cmd, g_strdup("-display"));
+			g_ptr_array_add(cmd, g_strdup("gtk,gl=on"));
+		} else {
+			g_ptr_array_add(cmd, g_strdup("-display"));
+			g_ptr_array_add(cmd, g_strdup("gtk,gl=off"));
+		}
+	}
+	
+	if (g_hash_table_match_key_alow(cfg, "rng_dev", "yes")) {
+		g_ptr_array_add(cmd, g_strdup("-object"));
+		g_ptr_array_add(cmd, g_strdup("rng-random,id=rng0,filename=/dev/random"));
+		g_ptr_array_add(cmd, g_strdup("-device"));
+		g_ptr_array_add(cmd, g_strdup("virtio-rng-pci,rng=rng0"));
+	}
+
+	if (g_dir_exists((char*)g_hash_table_lookup(cfg, "shared"))) {
+		snprintf(sf_str, BUFFER_MAX, ",smb=%s", telnet_port);
+	}
+	
+	/* @TODO: Forward ports logic */
+
+	g_ptr_array_add(cmd, g_strdup("-nic"));
+	snprintf(cmd_slice, BUFFER_MAX, "user,model=%s%s%s", (char*)g_hash_table_lookup(cfg, "net"), sf_str, fwd_ports_str);
+	g_ptr_array_add(cmd, g_strdup(cmd_slice));
+	
+	cfg_v = g_hash_table_lookup(cfg, "floppy");
+	if (file_exists((const char*) cfg_v)) {
+		g_ptr_array_add(cmd, g_strdup("-drive"));
+		snprintf(cmd_slice, BUFFER_MAX, "index=%d,file=%s,if=floppy,format=raw", drive_index, (char*)cfg_v);
+		g_ptr_array_add(cmd, g_strdup(cmd_slice));
+		drive_index++;
+	}
+	
+	cfg_v = g_hash_table_lookup(cfg, "cdrom");
+	if (file_exists((const char*) cfg_v)) {
+		g_ptr_array_add(cmd, g_strdup("-drive"));
+		snprintf(cmd_slice, BUFFER_MAX, "index=%d,file=%s,media=cdrom", drive_index, (char*)cfg_v);
+		g_ptr_array_add(cmd, g_strdup(cmd_slice));
+		drive_index++;
+	}
+	
+	cfg_v = g_hash_table_lookup(cfg, "disk");
+	if (file_exists((const char*) cfg_v)) {
+		gboolean hdd_virtio = g_hash_table_match_key_alow(cfg, "hdd_virtio", "yes");
+		g_ptr_array_add(cmd, g_strdup("-drive"));
+		snprintf(cmd_slice, BUFFER_MAX, "index=%d,file=%s%s", drive_index, (char*)cfg_v, hdd_virtio ? ",if=virtio" : "");
+		g_ptr_array_add(cmd, g_strdup(cmd_slice));
+		drive_index++;
+	}
+	
+	if (g_hash_table_match_key_alow(cfg, "localtime", "yes")) {
+		g_ptr_array_add(cmd, g_strdup("-rtc"));
+		g_ptr_array_add(cmd, g_strdup("base=localtime"));
+	}
+	
 	if (rc) {
 		*out_cmd = cmd;
 	}
