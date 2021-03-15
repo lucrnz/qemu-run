@@ -49,8 +49,7 @@ gboolean g_dir_exists(const gchar *path) {
 gboolean g_hash_table_match_key_alow(GHashTable *t, gpointer k, const char *s) {
 	/* Returns TRUE if the value of the provided key for the HashTable t
 	 * at lowercase is equal to s
-	 * Otherwise, returns FALSE
-	*/
+	 * Otherwise, returns FALSE */
 	gboolean res = FALSE;
 	char *t_v_low;
 	gpointer t_v = g_hash_table_lookup(t, k);
@@ -187,8 +186,6 @@ gboolean program_build_cmd_line(GHashTable *cfg, char *vm_dir, char *vm_name, ch
 	int drive_index = 0, telnet_port = 55555; // @TODO: Get usable TCP port
 	gpointer cfg_v;
 	char cmd_slice[buffer_slice] = {0};
-	char sf_str[buffer_slice] = {0};
-	//char fwd_ports_str[buffer_slice] = {0};
 
 	gboolean vm_has_name = (strcmp(vm_name, "") != 0 ? TRUE : FALSE);
 	gboolean vm_has_acc_enabled = g_hash_table_match_key_alow(cfg, "acc", "yes");
@@ -236,9 +233,8 @@ gboolean program_build_cmd_line(GHashTable *cfg, char *vm_dir, char *vm_name, ch
 	} else {
 		out_cmd = add_to_strbuff(out_cmd, vm_has_videoacc ? "-display gtk,gl=on" : "-display gtk,gl=off");
 	}
-
-	/* @TODO: Forward ports logic */
 	
+	// @TODO: Forward ports logic
 	snprintf(cmd_slice, buffer_slice, "%s-nic user,model=%s%s%s",
 		vm_has_rngdev ? "-object rng-random,id=rng0,filename=/dev/random -device virtio-rng-pci,rng=rng0 " : "",
 		(char*)g_hash_table_lookup(cfg, "net"),
@@ -288,43 +284,30 @@ gboolean program_find_vm_location(int argc, char **argv, char **out_vm_name, cha
 		*out_vm_dir = g_strdup(cwd);
 	}
 	
-	if (FALSE) {
-		// @TODO: detect_if_cfg_is_in_args(int argc, char** argv)
-		/*char cwd[PATH_MAX];
-		getcwd(cwd, sizeof(cwd));
-		*out_vm_dir = g_strdup(cwd);
-		*out_vm_name = g_strdup("VM_NAME");*/
-	} else {
-		// Normal lookup using ENV var
-		const char *vm_name = argv[1];
-		const char *vm_dir_env_str = getenv("QEMURUN_VM_PATH");
-		gboolean vm_dir_exists = FALSE;
-		char vm_dir[PATH_MAX];
-		gchar **vm_dir_env = g_strsplit(vm_dir_env_str, ":", 0);
+	const char *vm_name = argv[1];
+	const char *vm_dir_env_str = getenv("QEMURUN_VM_PATH");
+	gboolean vm_dir_exists = FALSE;
+	char vm_dir[PATH_MAX];
+	gchar **vm_dir_env = g_strsplit(vm_dir_env_str, ":", 0);
 
-		for (int i = 0; vm_dir_env[i] != NULL && vm_dir_exists == FALSE; i++) {
-			snprintf(vm_dir, PATH_MAX, "%s/%s", vm_dir_env[i], vm_name);
-			vm_dir_exists = g_dir_exists(vm_dir);
-		}
-		
-		if (vm_dir_exists) {
-			char cfg_file[PATH_MAX];
-			snprintf(cfg_file, PATH_MAX, "%s/%s", vm_dir, "config");
-			*out_vm_name = g_strdup(vm_name);
-			*out_vm_dir = g_strdup(vm_dir);
-			*out_vm_cfg_file = g_strdup(cfg_file);
-			rc = TRUE;
-		} else {
-			log_msg("Error: Cannot find VM, Check your VM_PATH env. variable ?");
-		}
-		
-		g_strfreev(vm_dir_env);
-		return rc;
+	for (int i = 0; vm_dir_env[i] != NULL && vm_dir_exists == FALSE; i++) {
+		snprintf(vm_dir, PATH_MAX, "%s/%s", vm_dir_env[i], vm_name);
+		vm_dir_exists = g_dir_exists(vm_dir);
 	}
-}
-
-void g_hash_table_print(gpointer key, gpointer value) {
-	printf("%s=%s\n", (char*) key, (char*) value);
+	
+	if (vm_dir_exists) {
+		char cfg_file[PATH_MAX];
+		snprintf(cfg_file, PATH_MAX, "%s/%s", vm_dir, "config");
+		*out_vm_name = g_strdup(vm_name);
+		*out_vm_dir = g_strdup(vm_dir);
+		*out_vm_cfg_file = g_strdup(cfg_file);
+		rc = TRUE;
+	} else {
+		log_msg("Error: Cannot find VM, Check your VM_PATH env. variable ?");
+	}
+	
+	g_strfreev(vm_dir_env);
+	return rc;
 }
 
 int main(int argc, char **argv) {
@@ -338,10 +321,9 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 	
-	//printf("vm_name=%s\nvm_dir=%s\nvm_cfg_file=%s\n", vm_name, vm_dir, vm_cfg_file);
-	
 	GHashTable *cfg = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
 	program_get_cfg_values(cfg, vm_dir);
+	
 	if (! config_load(vm_cfg_file, cfg)) {
 		log_msg("Error: cannot load config.");
 		return 1;
@@ -350,9 +332,11 @@ int main(int argc, char **argv) {
 	if (! program_build_cmd_line(cfg, vm_dir, vm_name, cmd)) {
 		return 1;
 	}
-	printf("Command line arguments:\n%s\n", cmd);
-	system(cmd);
+
 	g_free(vm_name); g_free(vm_dir); g_free(vm_cfg_file);
 	g_hash_table_destroy(cfg);
+	
+	printf("Command line arguments:\n%s\n", cmd);
+	system(cmd);
 	return 0;
 }
