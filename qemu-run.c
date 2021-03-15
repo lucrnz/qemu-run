@@ -22,7 +22,8 @@ along with qemu-run; see the file LICENSE.  If not see <http://www.gnu.org/licen
 #include <sys/sysinfo.h> // @TODO: Is this Linux only ?
 #include <sys/stat.h>
 
-#define BUFFER_MAX 1048576
+#define buffer_slice 1024
+#define buffer_max buffer_slice*1024
 
 #define cfg_add_kv(cfg, k, v) g_hash_table_insert(cfg, g_strdup(k), g_strdup(v));
 
@@ -78,7 +79,7 @@ int process_kv_pair(char *kv_cstr, GHashTable *cfg) {
 	if (kv_cstr_len < 3) return 1;
 
 	char c = '\0';
-	char value_buffer[BUFFER_MAX], key_buffer[BUFFER_MAX];
+	char value_buffer[buffer_slice], key_buffer[buffer_slice];
 
 	size_t value_len = 0, key_len = 0;
 	int setting_key = 1, trimming_left = 1;
@@ -103,7 +104,7 @@ int process_kv_pair(char *kv_cstr, GHashTable *cfg) {
 		} else if (!setting_key && !trimming_left) {
 			value_buffer[value_len] = c;
 			value_len++;
-		} 
+		}
 	}
 	key_buffer[key_len] = 0;
 	value_buffer[value_len] = 0;
@@ -118,8 +119,8 @@ int process_kv_pair(char *kv_cstr, GHashTable *cfg) {
 gboolean config_load(const char *fpath, GHashTable *cfg) {
 	FILE *fptr = fopen(fpath, "r");
 	if (fptr == NULL) return FALSE; //@TODO: error management
-	char line[BUFFER_MAX];
-	while(fgets(line, BUFFER_MAX, fptr) != NULL) {
+	char line[buffer_slice];
+	while(fgets(line, buffer_slice, fptr) != NULL) {
 		process_kv_pair(line, cfg);
 	}
 	fclose(fptr);
@@ -170,132 +171,108 @@ void program_get_cfg_values(GHashTable *cfg, char *vm_dir) {
 	}
 }
 
-gboolean program_build_cmd_line(GHashTable *cfg, char *vm_dir, char *vm_name, GPtrArray **out_cmd) {
+char *add_to_strbuff(char *dst,const char *src) {
+	char c;
+	for (;;) {
+		c = *src; src++;
+		if (c == '\0') break;
+		*dst = c; dst++;
+    }
+	*dst = ' '; dst++;
+	return dst;
+}
+
+gboolean program_build_cmd_line(GHashTable *cfg, char *vm_dir, char *vm_name, char *out_cmd) {
 	gboolean rc = TRUE;
 	int drive_index = 0, telnet_port = 55555; // @TODO: Get usable TCP port
 	gpointer cfg_v;
-	*out_cmd = NULL;
-	GPtrArray *cmd = g_ptr_array_new_with_free_func(g_free);
-	char cmd_slice[BUFFER_MAX] = {0};
-	char sf_str[BUFFER_MAX] = {0};
-	char fwd_ports_str[BUFFER_MAX] = {0};
-	cmd_slice[0] = 0; sf_str[0] = 0;
+	char cmd_slice[buffer_slice] = {0};
+	char sf_str[buffer_slice] = {0};
+	//char fwd_ports_str[buffer_slice] = {0};
+
+	gboolean vm_has_name = (strcmp(vm_name, "") != 0 ? TRUE : FALSE);
+	gboolean vm_has_acc_enabled = g_hash_table_match_key_alow(cfg, "acc", "yes");
+	gboolean vm_has_vncpwd = (strcmp((const char*)g_hash_table_lookup(cfg, "vnc_pwd"), "") != 0 ? TRUE : FALSE);
+	gboolean vm_has_audio = (g_hash_table_match_key_alow(cfg, "snd", "no") ? FALSE : TRUE);
+	gboolean vm_has_videoacc = g_hash_table_match_key_alow(cfg, "host_video_acc", "yes");
+	gboolean vm_has_rngdev = g_hash_table_match_key_alow(cfg, "rng_dev", "yes");
+	gboolean vm_is_headless = g_hash_table_match_key_alow(cfg, "headless", "yes");
+	gboolean vm_clock_is_localtime = g_hash_table_match_key_alow(cfg, "localtime", "yes");
+	gboolean vm_has_sharedf = (strcmp(g_hash_table_lookup(cfg, "shared"), "") != 0 ? TRUE : FALSE);
+	gboolean vm_has_hddvirtio = g_hash_table_match_key_alow(cfg, "hdd_virtio", "yes");
+	
+	if (vm_has_sharedf) {
+		vm_has_sharedf = g_dir_exists(g_hash_table_lookup(cfg, "shared"));
+	}
 	
 	cfg_v = g_hash_table_lookup(cfg, "sys");
 	if (strcmp((const char*)cfg_v, "x32") == 0) {
-		g_ptr_array_add(cmd, g_strdup("qemu-system-i386"));
+		out_cmd = add_to_strbuff(out_cmd, "qemu-system-i386");
 	} else if (strcmp((const char*)cfg_v, "x64") == 0) {
-		g_ptr_array_add(cmd, g_strdup("qemu-system-x86_64"));
+		out_cmd = add_to_strbuff(out_cmd, "qemu-system-x86_64");
 	} else {
 		log_msg("Invalid value for sys"); //@TODO: Logger
-		g_ptr_array_free(cmd, TRUE);
 		rc = FALSE;
 	}
-
-	if (g_hash_table_match_key_alow(cfg, "acc", "yes")) {
-		g_ptr_array_add(cmd, g_strdup("--enable-kvm"));
-	}
 	
-	if (strcmp(vm_name, "") != 0) {
-		g_ptr_array_add(cmd, g_strdup("-name"));
-		g_ptr_array_add(cmd, g_strdup(vm_name));
-	}
-	
-	g_ptr_array_add(cmd, g_strdup("-cpu"));
-	g_ptr_array_add(cmd, g_strdup((char*)g_hash_table_lookup(cfg, "cpu")));
-	g_ptr_array_add(cmd, g_strdup("-smp"));
-	g_ptr_array_add(cmd, g_strdup((char*)g_hash_table_lookup(cfg, "cores")));
-	g_ptr_array_add(cmd, g_strdup("-m"));
-	g_ptr_array_add(cmd, g_strdup((char*)g_hash_table_lookup(cfg, "mem")));
-	g_ptr_array_add(cmd, g_strdup("-boot"));
-	snprintf(cmd_slice, BUFFER_MAX, "order=%s", (char*)g_hash_table_lookup(cfg, "boot"));
-	g_ptr_array_add(cmd, g_strdup(cmd_slice));
+	snprintf(cmd_slice, buffer_slice, "%s-name %s -cpu %s -smp %s -m %s -boot order=%s -usb -device usb-tablet -vga %s %s%s",
+		vm_has_acc_enabled ? "--enable-kvm " : "",
+		vm_has_name ? vm_name : "QEMU",
+		(char*)g_hash_table_lookup(cfg, "cpu"),
+		(char*)g_hash_table_lookup(cfg, "cores"),
+		(char*)g_hash_table_lookup(cfg, "mem"),
+		(char*)g_hash_table_lookup(cfg, "boot"),
+		(char*)g_hash_table_lookup(cfg, "vga"),
+		vm_has_audio ? "-soundhw " : "",
+		vm_has_audio ? (char*)g_hash_table_lookup(cfg, "snd") : ""
+	);
+	out_cmd = add_to_strbuff(out_cmd, cmd_slice);
 
-	g_ptr_array_add(cmd, g_strdup("-usb"));
-	g_ptr_array_add(cmd, g_strdup("-device"));
-	g_ptr_array_add(cmd, g_strdup("usb-tablet"));
-	
-	if (! g_hash_table_match_key_alow(cfg, "snd", "no")) {
-		g_ptr_array_add(cmd, g_strdup("-soundhw"));
-		g_ptr_array_add(cmd, g_strdup((char*)g_hash_table_lookup(cfg, "snd")));
-	}
-
-	g_ptr_array_add(cmd, g_strdup("-vga"));
-	g_ptr_array_add(cmd, g_strdup((char*)g_hash_table_lookup(cfg, "vga")));
-
-	if (g_hash_table_match_key_alow(cfg, "headless", "yes")) {
-		g_ptr_array_add(cmd, g_strdup("-monitor"));
-		snprintf(cmd_slice, BUFFER_MAX, "telnet:127.0.0.1:%d,server,nowait", telnet_port);
-		g_ptr_array_add(cmd, g_strdup(cmd_slice));
-		g_ptr_array_add(cmd, g_strdup("-vnc"));
-		gboolean has_vncpwd = (!strcmp((const char*)g_hash_table_lookup(cfg, "vnc_pwd"), ""));
-		g_ptr_array_add(cmd, g_strdup(has_vncpwd ? "127.0.0.1:0,password" : "127.0.0.1:0" ));
-		g_ptr_array_add(cmd, g_strdup("-display"));
-		g_ptr_array_add(cmd, g_strdup("none"));
+	if (vm_is_headless) {
+		snprintf(cmd_slice, buffer_slice, "-display none -monitor telnet:127.0.0.1:%d,server,nowait -vnc %s",
+			telnet_port,
+			vm_has_vncpwd ? "127.0.0.1:0,password" : "127.0.0.1:0");
+		out_cmd = add_to_strbuff(out_cmd, cmd_slice);
 	} else {
-		if (g_hash_table_match_key_alow(cfg, "host_video_acc", "yes")) {
-			g_ptr_array_add(cmd, g_strdup("-display"));
-			g_ptr_array_add(cmd, g_strdup("gtk,gl=on"));
-		} else {
-			g_ptr_array_add(cmd, g_strdup("-display"));
-			g_ptr_array_add(cmd, g_strdup("gtk,gl=off"));
-		}
-	}
-	
-	if (g_hash_table_match_key_alow(cfg, "rng_dev", "yes")) {
-		g_ptr_array_add(cmd, g_strdup("-object"));
-		g_ptr_array_add(cmd, g_strdup("rng-random,id=rng0,filename=/dev/random"));
-		g_ptr_array_add(cmd, g_strdup("-device"));
-		g_ptr_array_add(cmd, g_strdup("virtio-rng-pci,rng=rng0"));
+		out_cmd = add_to_strbuff(out_cmd, vm_has_videoacc ? "-display gtk,gl=on" : "-display gtk,gl=off");
 	}
 
-	cfg_v = g_hash_table_lookup(cfg, "shared");
-	if (strcmp((const char*) cfg_v, "") != 0) {
-		if (g_dir_exists((const char*) cfg_v)) {
-			snprintf(sf_str, BUFFER_MAX, ",smb=%s", (const char*)cfg_v);
-		}
-	}
-	
 	/* @TODO: Forward ports logic */
-
-	g_ptr_array_add(cmd, g_strdup("-nic"));
-	snprintf(cmd_slice, BUFFER_MAX, "user,model=%s%s%s", (char*)g_hash_table_lookup(cfg, "net"), sf_str, fwd_ports_str);
-	g_ptr_array_add(cmd, g_strdup(cmd_slice));
+	
+	snprintf(cmd_slice, buffer_slice, "%s-nic user,model=%s%s%s",
+		vm_has_rngdev ? "-object rng-random,id=rng0,filename=/dev/random -device virtio-rng-pci,rng=rng0 " : "",
+		(char*)g_hash_table_lookup(cfg, "net"),
+		vm_has_sharedf ? ",smb=" : "",
+		vm_has_sharedf ? g_hash_table_lookup(cfg, "shared") : ""
+	);
+	out_cmd = add_to_strbuff(out_cmd, cmd_slice);
 	
 	cfg_v = g_hash_table_lookup(cfg, "floppy");
 	if (file_exists((const char*) cfg_v)) {
-		g_ptr_array_add(cmd, g_strdup("-drive"));
-		snprintf(cmd_slice, BUFFER_MAX, "index=%d,file=%s,if=floppy,format=raw", drive_index, (char*)cfg_v);
-		g_ptr_array_add(cmd, g_strdup(cmd_slice));
+		snprintf(cmd_slice, buffer_slice, "-drive index=%d,file=%s,if=floppy,format=raw", drive_index, (char*)cfg_v);
+		out_cmd = add_to_strbuff(out_cmd, cmd_slice);
 		drive_index++;
 	}
 	
 	cfg_v = g_hash_table_lookup(cfg, "cdrom");
 	if (file_exists((const char*) cfg_v)) {
-		g_ptr_array_add(cmd, g_strdup("-drive"));
-		snprintf(cmd_slice, BUFFER_MAX, "index=%d,file=%s,media=cdrom", drive_index, (char*)cfg_v);
-		g_ptr_array_add(cmd, g_strdup(cmd_slice));
+		snprintf(cmd_slice, buffer_slice, "-drive index=%d,file=%s,media=cdrom", drive_index, (char*)cfg_v);
+		out_cmd = add_to_strbuff(out_cmd, cmd_slice);
 		drive_index++;
 	}
 	
 	cfg_v = g_hash_table_lookup(cfg, "disk");
 	if (file_exists((const char*) cfg_v)) {
-		gboolean hdd_virtio = g_hash_table_match_key_alow(cfg, "hdd_virtio", "yes");
-		g_ptr_array_add(cmd, g_strdup("-drive"));
-		snprintf(cmd_slice, BUFFER_MAX, "index=%d,file=%s%s", drive_index, (char*)cfg_v, hdd_virtio ? ",if=virtio" : "");
-		g_ptr_array_add(cmd, g_strdup(cmd_slice));
+		snprintf(cmd_slice, buffer_slice, "-drive index=%d,file=%s%s", drive_index, (char*)cfg_v, vm_has_hddvirtio ? ",if=virtio" : "");
+		out_cmd = add_to_strbuff(out_cmd, cmd_slice);
 		drive_index++;
 	}
 	
-	if (g_hash_table_match_key_alow(cfg, "localtime", "yes")) {
-		g_ptr_array_add(cmd, g_strdup("-rtc"));
-		g_ptr_array_add(cmd, g_strdup("base=localtime"));
+	if (vm_clock_is_localtime) {
+		out_cmd = add_to_strbuff(out_cmd, "-rtc base=localtime");
 	}
 	
-	if (rc) {
-		*out_cmd = cmd;
-	}
-	
+	out_cmd--; *out_cmd='\0';
 	return rc;
 }
 
@@ -350,32 +327,12 @@ void g_hash_table_print(gpointer key, gpointer value) {
 	printf("%s=%s\n", (char*) key, (char*) value);
 }
 
-void g_ptr_array_foreach_len(gpointer data, gpointer user_data) {
-	//printf("%s ", (const char*) data);
-	size_t len_total = *(size_t*)user_data;
-	*(size_t*)user_data = len_total + strlen((const char*) data) + 1;
-}
-
-void g_ptr_array_foreach_copy(gpointer data, gpointer user_data) {
-	char *src = (char *) data;
-	char *dst = *(char **)user_data;
-
-	for (int i = 0; src[i] != '\0'; i++) {
-		*dst = src[i];
-		dst++;
-		//printf("%p = [%c]\n", dst, src[i]);
-	}
-	
-	*dst = ' '; dst++;
-	*(char **)user_data = dst;
-}
-
 int main(int argc, char **argv) {
 	print_gpl_banner();
 	char *vm_name = NULL;
 	char *vm_dir = NULL;
 	char *vm_cfg_file = NULL;
-	GPtrArray *cmd = NULL;
+	char cmd[buffer_max];
 	
 	if (! program_find_vm_location(argc, argv, &vm_name, &vm_dir, &vm_cfg_file)) {
 		return 1;
@@ -390,22 +347,12 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 	
-	if (! program_build_cmd_line(cfg, vm_dir, vm_name, &cmd)) {
+	if (! program_build_cmd_line(cfg, vm_dir, vm_name, cmd)) {
 		return 1;
 	}
-
-	//g_hash_table_foreach(cfg, g_hash_table_print, NULL);
-	size_t cmd_final_len = 0;
-	g_ptr_array_foreach (cmd, g_ptr_array_foreach_len, &cmd_final_len);
-	char *cmd_final = malloc(sizeof(char)*cmd_final_len);
-	char *cmd_final_start = cmd_final;
-	g_ptr_array_foreach (cmd, g_ptr_array_foreach_copy, &cmd_final);
-	cmd_final_start[cmd_final_len - 1] = '\0';
-	printf("Command line arguments:\n%s\n", cmd_final_start);
-	system(cmd_final_start);
-	free(cmd_final_start);
+	printf("Command line arguments:\n%s\n", cmd);
+	system(cmd);
 	g_free(vm_name); g_free(vm_dir); g_free(vm_cfg_file);
-	g_ptr_array_free(cmd, TRUE);
 	g_hash_table_destroy(cfg);
 	return 0;
 }
