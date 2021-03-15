@@ -176,7 +176,7 @@ char *add_to_strbuff(char *dst,const char *src) {
 		c = *src; src++;
 		if (c == '\0') break;
 		*dst = c; dst++;
-    }
+	}
 	*dst = ' '; dst++;
 	return dst;
 }
