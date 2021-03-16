@@ -14,6 +14,7 @@ along with qemu-run; see the file LICENSE.  If not see <http://www.gnu.org/licen
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 #include <ctype.h>
 #include <unistd.h>
 #include <linux/limits.h>
@@ -43,20 +44,11 @@ int filetype(const char *fpath) {
 	return ret;
 }
 
-gboolean g_hash_table_match_key_alow(GHashTable *t, gpointer k, const char *s) {
-	/* Returns TRUE if the value of the provided key for the HashTable t
-	 * at lowercase is equal to s
-	 * Otherwise, returns FALSE */
-	gboolean res = FALSE;
-	char *t_v_low;
-	gpointer t_v = g_hash_table_lookup(t, k);
-	
-	if (t_v != NULL) {
-		t_v_low = g_ascii_strdown(t_v, -1);		
-		res = strcmp((const char*)t_v_low, s) == 0 ? TRUE : FALSE;
-		g_free(t_v_low);
-	}
-	
+_Bool g_hash_table_match_key_alow(GHashTable *t, void* k, const char *s) {
+	_Bool res = 0;
+	void* v = g_hash_table_lookup(t, k);
+	if (v != NULL)
+		res = strcasecmp((const char*)v, s) == 0 ? 1 : 0;
 	return res;
 }
 
@@ -112,15 +104,15 @@ int process_kv_pair(char *kv_cstr, GHashTable *cfg) {
 	return 0;
 }
 
-gboolean config_load(const char *fpath, GHashTable *cfg) {
+_Bool config_load(const char *fpath, GHashTable *cfg) {
 	FILE *fptr = fopen(fpath, "r");
-	if (fptr == NULL) return FALSE; //@TODO: error management
+	if (fptr == NULL) return 0; //@TODO: error management
 	char line[buffer_slice];
 	while(fgets(line, buffer_slice, fptr) != NULL) {
 		process_kv_pair(line, cfg);
 	}
 	fclose(fptr);
-	return TRUE;
+	return 1;
 }
 
 void program_get_cfg_values(GHashTable *cfg, char *vm_dir) {
@@ -178,22 +170,22 @@ char *add_to_strbuff(char *dst,const char *src) {
 	return dst;
 }
 
-gboolean program_build_cmd_line(GHashTable *cfg, char *vm_dir, char *vm_name, char *out_cmd) {
-	gboolean rc = TRUE;
+_Bool program_build_cmd_line(GHashTable *cfg, char *vm_dir, char *vm_name, char *out_cmd) {
+	_Bool rc = 1;
 	int drive_index = 0, telnet_port = 55555; // @TODO: Get usable TCP port
 	gpointer cfg_v;
 	char cmd_slice[buffer_slice] = {0};
 
-	gboolean vm_has_name = (strcmp(vm_name, "") != 0 ? TRUE : FALSE);
-	gboolean vm_has_acc_enabled = g_hash_table_match_key_alow(cfg, "acc", "yes");
-	gboolean vm_has_vncpwd = (strcmp((const char*)g_hash_table_lookup(cfg, "vnc_pwd"), "") != 0 ? TRUE : FALSE);
-	gboolean vm_has_audio = (g_hash_table_match_key_alow(cfg, "snd", "no") ? FALSE : TRUE);
-	gboolean vm_has_videoacc = g_hash_table_match_key_alow(cfg, "host_video_acc", "yes");
-	gboolean vm_has_rngdev = g_hash_table_match_key_alow(cfg, "rng_dev", "yes");
-	gboolean vm_is_headless = g_hash_table_match_key_alow(cfg, "headless", "yes");
-	gboolean vm_clock_is_localtime = g_hash_table_match_key_alow(cfg, "localtime", "yes");
-	gboolean vm_has_sharedf = (strcmp(g_hash_table_lookup(cfg, "shared"), "") != 0 ? TRUE : FALSE);
-	gboolean vm_has_hddvirtio = g_hash_table_match_key_alow(cfg, "hdd_virtio", "yes");
+	_Bool vm_has_name = (strcmp(vm_name, "") != 0 ? 1 : 0);
+	_Bool vm_has_acc_enabled = g_hash_table_match_key_alow(cfg, "acc", "yes");
+	_Bool vm_has_vncpwd = (strcmp((const char*)g_hash_table_lookup(cfg, "vnc_pwd"), "") != 0 ? 1 : 0);
+	_Bool vm_has_audio = (g_hash_table_match_key_alow(cfg, "snd", "no") ? 1 : 0);
+	_Bool vm_has_videoacc = g_hash_table_match_key_alow(cfg, "host_video_acc", "yes");
+	_Bool vm_has_rngdev = g_hash_table_match_key_alow(cfg, "rng_dev", "yes");
+	_Bool vm_is_headless = g_hash_table_match_key_alow(cfg, "headless", "yes");
+	_Bool vm_clock_is_localtime = g_hash_table_match_key_alow(cfg, "localtime", "yes");
+	_Bool vm_has_sharedf = (strcmp(g_hash_table_lookup(cfg, "shared"), "") != 0 ? 1 : 0);
+	_Bool vm_has_hddvirtio = g_hash_table_match_key_alow(cfg, "hdd_virtio", "yes");
 	
 	if (vm_has_sharedf) {
 		vm_has_sharedf = path_is_dir(g_hash_table_lookup(cfg, "shared"));
@@ -206,7 +198,7 @@ gboolean program_build_cmd_line(GHashTable *cfg, char *vm_dir, char *vm_name, ch
 		out_cmd = add_to_strbuff(out_cmd, "qemu-system-x86_64");
 	} else {
 		log_msg("Invalid value for sys"); //@TODO: Logger
-		rc = FALSE;
+		return 0;
 	}
 	
 	snprintf(cmd_slice, buffer_slice, "%s-name %s -cpu %s -smp %s -m %s -boot order=%s -usb -device usb-tablet -vga %s %s%s",
@@ -269,25 +261,16 @@ gboolean program_build_cmd_line(GHashTable *cfg, char *vm_dir, char *vm_name, ch
 	return rc;
 }
 
-gboolean program_find_vm_location(int argc, char **argv, char **out_vm_name, char **out_vm_dir, char **out_vm_cfg_file) {
-	gboolean rc = FALSE;
-	*out_vm_name = NULL;
-	*out_vm_dir = NULL;
-	*out_vm_cfg_file = NULL;
-	
-	if (argc == 1) {
-		char cwd[PATH_MAX];
-		getcwd(cwd, sizeof(cwd));
-		*out_vm_dir = g_strdup(cwd);
-	}
-	
+_Bool program_find_vm_location(int argc, char **argv, char **out_vm_name, char **out_vm_dir, char **out_vm_cfg_file) {
+	_Bool rc = 0;
+
 	const char *vm_name = argv[1];
 	const char *vm_dir_env_str = getenv("QEMURUN_VM_PATH");
-	gboolean vm_dir_exists = FALSE;
+	_Bool vm_dir_exists = 0;
 	char vm_dir[PATH_MAX];
 	gchar **vm_dir_env = g_strsplit(vm_dir_env_str, ":", 0);
 
-	for (int i = 0; vm_dir_env[i] != NULL && vm_dir_exists == FALSE; i++) {
+	for (int i = 0; vm_dir_env[i] != NULL && vm_dir_exists == 0; i++) {
 		snprintf(vm_dir, PATH_MAX, "%s/%s", vm_dir_env[i], vm_name);
 		vm_dir_exists = path_is_dir(vm_dir);
 	}
@@ -298,7 +281,7 @@ gboolean program_find_vm_location(int argc, char **argv, char **out_vm_name, cha
 		*out_vm_name = g_strdup(vm_name);
 		*out_vm_dir = g_strdup(vm_dir);
 		*out_vm_cfg_file = g_strdup(cfg_file);
-		rc = TRUE;
+		rc = 1;
 	} else {
 		log_msg("Error: Cannot find VM, Check your VM_PATH env. variable ?");
 	}
