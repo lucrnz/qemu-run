@@ -61,10 +61,10 @@ size_t cstr_trim_right(const char *cstr, const size_t length) {
 	return length - difference;
 }
 
-int process_kv_pair(char *kv_cstr, GHashTable *cfg) {
+_Bool process_kv_pair(char *kv_cstr, GHashTable *cfg) {
 	size_t kv_cstr_len = strlen(kv_cstr);
 	kv_cstr[kv_cstr_len - 1] = '\0';
-	if (kv_cstr_len < 3) return 1;
+	if (kv_cstr_len < 3) return 0;
 
 	char c = '\0';
 	char value_buffer[buffer_slice], key_buffer[buffer_slice];
@@ -101,7 +101,7 @@ int process_kv_pair(char *kv_cstr, GHashTable *cfg) {
 	key_buffer[key_len] = 0;
 	value_buffer[value_len] = 0;
 	g_hash_table_replace(cfg, g_strdup(key_buffer), g_strdup(value_buffer));
-	return 0;
+	return 1;
 }
 
 _Bool config_load(const char *fpath, GHashTable *cfg) {
@@ -115,8 +115,8 @@ _Bool config_load(const char *fpath, GHashTable *cfg) {
 	return 1;
 }
 
-void program_get_cfg_values(GHashTable *cfg, char *vm_dir) {
-	char path_buff[PATH_MAX] = {0};
+_Bool program_get_cfg_values(GHashTable *cfg, char *vm_dir) {
+	char path_buff[PATH_MAX];
 	char nproc_str[4];
 	snprintf(nproc_str, 4, "%d", get_nprocs());
 	cfg_add_kv(cfg, "sys", "x64");
@@ -157,6 +157,8 @@ void program_get_cfg_values(GHashTable *cfg, char *vm_dir) {
 	if (path_is_file(path_buff)) {
 		cfg_add_kv(cfg, "disk", path_buff);
 	}
+	
+	return 1;
 }
 
 char *add_to_strbuff(char *dst,const char *src) {
@@ -261,14 +263,13 @@ _Bool program_build_cmd_line(GHashTable *cfg, char *vm_dir, char *vm_name, char 
 	return rc;
 }
 
-_Bool program_find_vm_location(int argc, char **argv, char **out_vm_name, char **out_vm_dir, char **out_vm_cfg_file) {
+_Bool program_find_vm_location(int argc, char **argv, char *out_vm_name, char *out_vm_dir, char *out_vm_cfg_file) {
 	_Bool rc = 0;
-
-	const char *vm_name = argv[1];
-	const char *vm_dir_env_str = getenv("QEMURUN_VM_PATH");
 	_Bool vm_dir_exists = 0;
 	char vm_dir[PATH_MAX];
-	gchar **vm_dir_env = g_strsplit(vm_dir_env_str, ":", 0);
+	const char *vm_name = argv[1];
+	const char *vm_dir_env_str = getenv("QEMURUN_VM_PATH");
+	char **vm_dir_env = (char **)g_strsplit(vm_dir_env_str, ":", 0);
 
 	for (int i = 0; vm_dir_env[i] != NULL && vm_dir_exists == 0; i++) {
 		snprintf(vm_dir, PATH_MAX, "%s/%s", vm_dir_env[i], vm_name);
@@ -278,9 +279,9 @@ _Bool program_find_vm_location(int argc, char **argv, char **out_vm_name, char *
 	if (vm_dir_exists) {
 		char cfg_file[PATH_MAX];
 		snprintf(cfg_file, PATH_MAX, "%s/%s", vm_dir, "config");
-		*out_vm_name = g_strdup(vm_name);
-		*out_vm_dir = g_strdup(vm_dir);
-		*out_vm_cfg_file = g_strdup(cfg_file);
+		strcpy(out_vm_name, vm_name);
+		strcpy(out_vm_dir, vm_dir);
+		strcpy(out_vm_cfg_file, cfg_file);
 		rc = 1;
 	} else {
 		log_msg("Error: Cannot find VM, Check your VM_PATH env. variable ?");
@@ -291,32 +292,21 @@ _Bool program_find_vm_location(int argc, char **argv, char **out_vm_name, char *
 }
 
 int main(int argc, char **argv) {
-	print_gpl_banner();
-	char *vm_name = NULL;
-	char *vm_dir = NULL;
-	char *vm_cfg_file = NULL;
-	char cmd[buffer_max];
-	
-	if (! program_find_vm_location(argc, argv, &vm_name, &vm_dir, &vm_cfg_file)) {
-		return 1;
-	}
-	
+	char cmd[buffer_max], vm_name[buffer_slice], vm_dir[buffer_slice], vm_cfg_file[buffer_slice];
 	GHashTable *cfg = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
-	program_get_cfg_values(cfg, vm_dir);
+	print_gpl_banner();
 	
-	if (! config_load(vm_cfg_file, cfg)) {
-		log_msg("Error: cannot load config.");
-		return 1;
+	if (program_find_vm_location(argc, argv, vm_name, vm_dir, vm_cfg_file) && 
+		program_get_cfg_values(cfg, vm_dir) &&
+		config_load(vm_cfg_file, cfg) &&
+		program_build_cmd_line(cfg, vm_dir, vm_name, cmd))
+	{
+		printf("Command line arguments:\n%s\n", cmd);
+		system(cmd);
+	} else {
+		log_msg("There was an error in the program.");
 	}
 	
-	if (! program_build_cmd_line(cfg, vm_dir, vm_name, cmd)) {
-		return 1;
-	}
-
-	g_free(vm_name); g_free(vm_dir); g_free(vm_cfg_file);
 	g_hash_table_destroy(cfg);
-	
-	printf("Command line arguments:\n%s\n", cmd);
-	system(cmd);
 	return 0;
 }
