@@ -2,12 +2,10 @@
 This file is part of qemu-run <https://github.com/lucie-cupcakes/qemu-run>.
 qemu-run is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free
-Software Foundation; either version 3, or (at your option) any later
-version.
+Software Foundation; either version 3, or (at your option) any later version.
 qemu-run is distributed in the hope that it will be useful, but WITHOUT ANY
 WARRANTY; without even the implied warranty of MERCHANTABILITY or
-FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
-for more details.
+FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with qemu-run; see the file LICENSE.  If not see <http://www.gnu.org/licenses/>.*/
 
@@ -21,6 +19,7 @@ along with qemu-run; see the file LICENSE.  If not see <http://www.gnu.org/licen
 #include <linux/limits.h>
 #include <sys/sysinfo.h> // @TODO: Is this Linux only ?
 #include <sys/stat.h>
+#include <sys/types.h>
 
 #define buffer_slice 1024
 #define buffer_max buffer_slice*1024
@@ -31,19 +30,17 @@ along with qemu-run; see the file LICENSE.  If not see <http://www.gnu.org/licen
 #define print_gpl_banner() \
 	puts("qemu-run. Forever beta software. Use on production on your own risk!\nThis software is Free software - released under the GPLv3 License.\nRead the LICENSE file. Or go visit https://www.gnu.org/licenses/gpl-3.0.html\n");
 
-gboolean file_exists(const char *fpath) {
-	struct stat buffer;
-	return (stat (fpath, &buffer) == 0) ? TRUE : FALSE;
-}
+#define path_is_dir(p) filetype(p) == 1
+#define path_is_file(p) filetype(p) == 2
 
-gboolean g_dir_exists(const gchar *path) {
-	gboolean rc = FALSE;
-	GDir* gd = g_dir_open(path, 0, NULL);
-	if (gd != NULL) {
-		rc = TRUE;
-		g_dir_close(gd);
+int filetype(const char *fpath) {
+	int ret = 0;
+	struct stat sb;
+	if (ret=(access (fpath,0) == 0)) {
+		stat(fpath,&sb);
+		ret+=S_ISREG(sb.st_mode)>0;
 	}
-	return rc;
+	return ret;
 }
 
 gboolean g_hash_table_match_key_alow(GHashTable *t, gpointer k, const char *s) {
@@ -150,22 +147,22 @@ void program_get_cfg_values(GHashTable *cfg, char *vm_dir) {
 	cfg_add_kv(cfg, "monitor_port", "5510");
 	
 	snprintf(path_buff, PATH_MAX, "%s/%s", vm_dir, "shared");
-	if (g_dir_exists(path_buff)) {
+	if (path_is_dir(path_buff)) {
 		cfg_add_kv(cfg, "shared", path_buff);
 	} else {
 		cfg_add_kv(cfg, "shared", "");
 	}
 	
 	snprintf(path_buff, PATH_MAX, "%s/%s", vm_dir, "floppy");
-	if (file_exists(path_buff)) {
+	if (path_is_file(path_buff)) {
 		cfg_add_kv(cfg, "floppy", path_buff);
 	}
 	snprintf(path_buff, PATH_MAX, "%s/%s", vm_dir, "cdrom");
-	if (file_exists(path_buff)) {
+	if (path_is_file(path_buff)) {
 		cfg_add_kv(cfg, "cdrom", path_buff);
 	}
 	snprintf(path_buff, PATH_MAX, "%s/%s", vm_dir, "disk");
-	if (file_exists(path_buff)) {
+	if (path_is_file(path_buff)) {
 		cfg_add_kv(cfg, "disk", path_buff);
 	}
 }
@@ -199,7 +196,7 @@ gboolean program_build_cmd_line(GHashTable *cfg, char *vm_dir, char *vm_name, ch
 	gboolean vm_has_hddvirtio = g_hash_table_match_key_alow(cfg, "hdd_virtio", "yes");
 	
 	if (vm_has_sharedf) {
-		vm_has_sharedf = g_dir_exists(g_hash_table_lookup(cfg, "shared"));
+		vm_has_sharedf = path_is_dir(g_hash_table_lookup(cfg, "shared"));
 	}
 	
 	cfg_v = g_hash_table_lookup(cfg, "sys");
@@ -244,21 +241,21 @@ gboolean program_build_cmd_line(GHashTable *cfg, char *vm_dir, char *vm_name, ch
 	out_cmd = add_to_strbuff(out_cmd, cmd_slice);
 	
 	cfg_v = g_hash_table_lookup(cfg, "floppy");
-	if (file_exists((const char*) cfg_v)) {
+	if (path_is_file((const char*) cfg_v)) {
 		snprintf(cmd_slice, buffer_slice, "-drive index=%d,file=%s,if=floppy,format=raw", drive_index, (char*)cfg_v);
 		out_cmd = add_to_strbuff(out_cmd, cmd_slice);
 		drive_index++;
 	}
 	
 	cfg_v = g_hash_table_lookup(cfg, "cdrom");
-	if (file_exists((const char*) cfg_v)) {
+	if (path_is_file((const char*) cfg_v)) {
 		snprintf(cmd_slice, buffer_slice, "-drive index=%d,file=%s,media=cdrom", drive_index, (char*)cfg_v);
 		out_cmd = add_to_strbuff(out_cmd, cmd_slice);
 		drive_index++;
 	}
 	
 	cfg_v = g_hash_table_lookup(cfg, "disk");
-	if (file_exists((const char*) cfg_v)) {
+	if (path_is_file((const char*) cfg_v)) {
 		snprintf(cmd_slice, buffer_slice, "-drive index=%d,file=%s%s", drive_index, (char*)cfg_v, vm_has_hddvirtio ? ",if=virtio" : "");
 		out_cmd = add_to_strbuff(out_cmd, cmd_slice);
 		drive_index++;
@@ -292,7 +289,7 @@ gboolean program_find_vm_location(int argc, char **argv, char **out_vm_name, cha
 
 	for (int i = 0; vm_dir_env[i] != NULL && vm_dir_exists == FALSE; i++) {
 		snprintf(vm_dir, PATH_MAX, "%s/%s", vm_dir_env[i], vm_name);
-		vm_dir_exists = g_dir_exists(vm_dir);
+		vm_dir_exists = path_is_dir(vm_dir);
 	}
 	
 	if (vm_dir_exists) {
