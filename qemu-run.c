@@ -203,7 +203,6 @@ _Bool program_build_cmd_line(struct hashmap_s *cfg, char *vm_name, char *out_cmd
 	vm_has_sharedf = vm_has_sharedf ? path_is_dir(hashmap_get_lk(cfg, "shared")) : 0;
 	
 	cfg_v = hashmap_get_lk(cfg, "sys");
-	printf("sys=%s\n", (char*)cfg_v);
 	if (strcmp((const char*)cfg_v, "x32") == 0) {
 		out_cmd = append_to_cmd(out_cmd, "qemu-system-i386");
 	} else if (strcmp((const char*)cfg_v, "x64") == 0) {
@@ -302,7 +301,6 @@ _Bool program_find_vm_location(int argc, char **argv, char *out_vm_name, char *o
 		log_msg("Error: Cannot find VM, Check your VM_PATH env. variable ?");
 	}
 
-	printf("program_find_vm_location=%s\n", rc ? "OK" : "FAIL");
 	return rc;
 }
 
