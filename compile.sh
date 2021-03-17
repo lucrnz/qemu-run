@@ -3,11 +3,11 @@
 
 CC=$(which gcc)
 CFLAGS="-O2 -s -pipe -fno-plt -mtune=generic"
-#CFLAGS="-g -O0 -mtune=generic"
-CSTD="-std=c99 -pedantic -Wall -Werror -Wextra -fsanitize=address,leak"
+#CFLAGS="-g -O0 -mtune=generic -fsanitize=address,leak"
+CSTD="-std=c99 -pedantic -Wall -Werror -Wextra"
 
 call_cc() {
-	$CC $CFLAGS $CSTD $@ $(pkg-config --cflags --libs glib-2.0)
+	$CC $CFLAGS $CSTD $@
 }
 
 call_cc qemu-run.c -o qemu-run.bin
