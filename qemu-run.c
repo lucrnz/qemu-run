@@ -10,6 +10,7 @@ You should have received a copy of the GNU General Public License
 along with qemu-run; see the file LICENSE.  If not see <http://www.gnu.org/licenses/>.*/
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <string.h>
 #include <strings.h>
 #include <ctype.h>
@@ -48,8 +49,8 @@ along with qemu-run; see the file LICENSE.  If not see <http://www.gnu.org/licen
 	append_to_strpool(str_pool_ptr, val); \
 	hashmap_put_lk(cfg, lkey, val_tmp_ptr)
 
-char *append_to_char_arr(char *dst, const char *src, _Bool append_strterm, _Bool append_endchar, char endchar) {
-	char c; _Bool stop = 0;
+char *append_to_char_arr(char *dst, const char *src, bool append_strterm, bool append_endchar, char endchar) {
+	char c; bool stop = 0;
 	while (!stop) {
 		c = *src; src++;
 		if (c == '\0' && append_strterm) stop=1;
@@ -69,8 +70,8 @@ int filetype(const char *fpath) {
 	return ret;
 }
 
-_Bool hashmap_match_char_ka(struct hashmap_s *t, char* k, const char *s) {
-	_Bool res = 0;
+bool hashmap_match_char_ka(struct hashmap_s *t, char* k, const char *s) {
+	bool res = 0;
 	void* v = hashmap_get(t, k, strlen(k));
 	if (v != NULL)
 		res = strcasecmp((const char*)v, s) == 0 ? 1 : 0;
@@ -86,7 +87,7 @@ size_t cstr_trim_right(const char *cstr, const size_t length) {
 	return length - difference;
 }
 
-_Bool process_kv_pair(char *kv_cstr, struct hashmap_s *cfg, char **str_pool, char delim) {
+bool process_kv_pair(char *kv_cstr, struct hashmap_s *cfg, char **str_pool, char delim) {
 	size_t kv_cstr_len = strlen(kv_cstr);
 	kv_cstr[kv_cstr_len - 1] = '\0';
 	if (kv_cstr_len < 3) return 0;
@@ -137,7 +138,7 @@ _Bool process_kv_pair(char *kv_cstr, struct hashmap_s *cfg, char **str_pool, cha
 	return 1;
 }
 
-_Bool program_load_config(struct hashmap_s *cfg, char **str_pool, const char *fpath) {
+bool program_load_config(struct hashmap_s *cfg, char **str_pool, const char *fpath) {
 	FILE *fptr = fopen(fpath, "r");
 	if (fptr == NULL) return 0; //@TODO: error management
 	char line[buff_size_slice*2];
@@ -149,7 +150,7 @@ _Bool program_load_config(struct hashmap_s *cfg, char **str_pool, const char *fp
 	return 1;
 }
 
-_Bool program_set_default_cfg_values(struct hashmap_s *cfg, char **str_pool, char *vm_dir) {
+bool program_set_default_cfg_values(struct hashmap_s *cfg, char **str_pool, char *vm_dir) {
 	char path_buff[PATH_MAX], nproc_str[4];
 	char* val_tmp;
 	snprintf(nproc_str, 4, "%d", get_nprocs());
@@ -183,22 +184,22 @@ _Bool program_set_default_cfg_values(struct hashmap_s *cfg, char **str_pool, cha
 	return 1;
 }
 
-_Bool program_build_cmd_line(struct hashmap_s *cfg, char *vm_name, char *out_cmd) {
-	_Bool rc = 1;
+bool program_build_cmd_line(struct hashmap_s *cfg, char *vm_name, char *out_cmd) {
+	bool rc = 1;
 	int drive_index = 0, telnet_port = 55555; // @TODO: Get usable TCP port
 	void* cfg_v;
 	char cmd_slice[buff_size_slice] = {0};
 
-	_Bool vm_has_name = (strcmp(vm_name, "") != 0 ? 1 : 0);
-	_Bool vm_has_acc_enabled = hashmap_match_char_ka(cfg, "acc", "yes");
-	_Bool vm_has_vncpwd = (strcmp((const char*)hashmap_get_lk(cfg, "vnc_pwd"), "") != 0 ? 1 : 0);
-	_Bool vm_has_audio = (hashmap_match_char_ka(cfg, "snd", "no") ? 1 : 0);
-	_Bool vm_has_videoacc = hashmap_match_char_ka(cfg, "host_video_acc", "yes");
-	_Bool vm_has_rngdev = hashmap_match_char_ka(cfg, "rng_dev", "yes");
-	_Bool vm_is_headless = hashmap_match_char_ka(cfg, "headless", "yes");
-	_Bool vm_clock_is_localtime = hashmap_match_char_ka(cfg, "localtime", "yes");
-	_Bool vm_has_sharedf = (strcmp(hashmap_get_lk(cfg, "shared"), "") != 0 ? 1 : 0);
-	_Bool vm_has_hddvirtio = hashmap_match_char_ka(cfg, "hdd_virtio", "yes");
+	bool vm_has_name = (strcmp(vm_name, "") != 0 ? 1 : 0);
+	bool vm_has_acc_enabled = hashmap_match_char_ka(cfg, "acc", "yes");
+	bool vm_has_vncpwd = (strcmp((const char*)hashmap_get_lk(cfg, "vnc_pwd"), "") != 0 ? 1 : 0);
+	bool vm_has_audio = (hashmap_match_char_ka(cfg, "snd", "no") ? 1 : 0);
+	bool vm_has_videoacc = hashmap_match_char_ka(cfg, "host_video_acc", "yes");
+	bool vm_has_rngdev = hashmap_match_char_ka(cfg, "rng_dev", "yes");
+	bool vm_is_headless = hashmap_match_char_ka(cfg, "headless", "yes");
+	bool vm_clock_is_localtime = hashmap_match_char_ka(cfg, "localtime", "yes");
+	bool vm_has_sharedf = (strcmp(hashmap_get_lk(cfg, "shared"), "") != 0 ? 1 : 0);
+	bool vm_has_hddvirtio = hashmap_match_char_ka(cfg, "hdd_virtio", "yes");
 	
 	vm_has_sharedf = vm_has_sharedf ? path_is_dir(hashmap_get_lk(cfg, "shared")) : 0;
 	
@@ -269,8 +270,8 @@ _Bool program_build_cmd_line(struct hashmap_s *cfg, char *vm_name, char *out_cmd
 	return rc;
 }
 
-_Bool program_find_vm_location(int argc, char **argv, char *out_vm_name, char *out_vm_dir, char *out_vm_cfg_file) {
-	_Bool rc = 0, vm_dir_exists = 0;
+bool program_find_vm_location(int argc, char **argv, char *out_vm_name, char *out_vm_dir, char *out_vm_cfg_file) {
+	bool rc = 0, vm_dir_exists = 0;
 	char *vm_name, vm_dir[buff_size_slice-16];
 
 	if (argc >= 1) {
