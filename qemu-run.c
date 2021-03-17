@@ -37,7 +37,7 @@ along with qemu-run; see the file LICENSE.  If not see <http://www.gnu.org/licen
 int filetype(const char *fpath) {
 	int ret = 0;
 	struct stat sb;
-	if (ret=(access (fpath,0) == 0)) {
+	if ((ret=(access (fpath,0) == 0))) {
 		stat(fpath,&sb);
 		ret+=S_ISREG(sb.st_mode)>0;
 	}
@@ -138,26 +138,25 @@ _Bool program_get_cfg_values(GHashTable *cfg, char *vm_dir) {
 	cfg_add_kv(cfg, "vnc_pwd", "");
 	cfg_add_kv(cfg, "monitor_port", "5510");
 	
-	snprintf(path_buff, PATH_MAX, "%s/%s", vm_dir, "shared");
+	snprintf(path_buff, PATH_MAX, "%s/shared", vm_dir);
 	if (path_is_dir(path_buff)) {
 		cfg_add_kv(cfg, "shared", path_buff);
 	} else {
 		cfg_add_kv(cfg, "shared", "");
 	}
 	
-	snprintf(path_buff, PATH_MAX, "%s/%s", vm_dir, "floppy");
+	snprintf(path_buff, PATH_MAX, "%s/floppy", vm_dir);
 	if (path_is_file(path_buff)) {
 		cfg_add_kv(cfg, "floppy", path_buff);
 	}
-	snprintf(path_buff, PATH_MAX, "%s/%s", vm_dir, "cdrom");
+	snprintf(path_buff, PATH_MAX, "%s/cdrom", vm_dir);
 	if (path_is_file(path_buff)) {
 		cfg_add_kv(cfg, "cdrom", path_buff);
 	}
-	snprintf(path_buff, PATH_MAX, "%s/%s", vm_dir, "disk");
+	snprintf(path_buff, PATH_MAX, "%s/disk", vm_dir);
 	if (path_is_file(path_buff)) {
 		cfg_add_kv(cfg, "disk", path_buff);
 	}
-	
 	return 1;
 }
 
@@ -172,7 +171,7 @@ char *add_to_strbuff(char *dst,const char *src) {
 	return dst;
 }
 
-_Bool program_build_cmd_line(GHashTable *cfg, char *vm_dir, char *vm_name, char *out_cmd) {
+_Bool program_build_cmd_line(GHashTable *cfg, char *vm_name, char *out_cmd) {
 	_Bool rc = 1;
 	int drive_index = 0, telnet_port = 55555; // @TODO: Get usable TCP port
 	gpointer cfg_v;
@@ -230,7 +229,7 @@ _Bool program_build_cmd_line(GHashTable *cfg, char *vm_dir, char *vm_name, char 
 		vm_has_rngdev ? "-object rng-random,id=rng0,filename=/dev/random -device virtio-rng-pci,rng=rng0 " : "",
 		(char*)g_hash_table_lookup(cfg, "net"),
 		vm_has_sharedf ? ",smb=" : "",
-		vm_has_sharedf ? g_hash_table_lookup(cfg, "shared") : ""
+		vm_has_sharedf ? (char*)g_hash_table_lookup(cfg, "shared") : ""
 	);
 	out_cmd = add_to_strbuff(out_cmd, cmd_slice);
 	
@@ -266,8 +265,16 @@ _Bool program_build_cmd_line(GHashTable *cfg, char *vm_dir, char *vm_name, char 
 _Bool program_find_vm_location(int argc, char **argv, char *out_vm_name, char *out_vm_dir, char *out_vm_cfg_file) {
 	_Bool rc = 0;
 	_Bool vm_dir_exists = 0;
-	char vm_dir[PATH_MAX];
-	const char *vm_name = argv[1];
+	char* vm_name;
+
+	if (argc >= 1) {
+		vm_name = argv[1];
+	} else {
+		log_msg("Invalid argument count.");
+		return 0;
+	}
+
+	char vm_dir[buffer_slice-16];
 	const char *vm_dir_env_str = getenv("QEMURUN_VM_PATH");
 	char **vm_dir_env = (char **)g_strsplit(vm_dir_env_str, ":", 0);
 
@@ -278,7 +285,7 @@ _Bool program_find_vm_location(int argc, char **argv, char *out_vm_name, char *o
 	
 	if (vm_dir_exists) {
 		char cfg_file[PATH_MAX];
-		snprintf(cfg_file, PATH_MAX, "%s/%s", vm_dir, "config");
+		snprintf(cfg_file, PATH_MAX, "%s/config", vm_dir);
 		strcpy(out_vm_name, vm_name);
 		strcpy(out_vm_dir, vm_dir);
 		strcpy(out_vm_cfg_file, cfg_file);
@@ -292,14 +299,14 @@ _Bool program_find_vm_location(int argc, char **argv, char *out_vm_name, char *o
 }
 
 int main(int argc, char **argv) {
-	char cmd[buffer_max], vm_name[buffer_slice], vm_dir[buffer_slice], vm_cfg_file[buffer_slice];
+	char cmd[buffer_max], vm_name[buffer_slice], vm_dir[PATH_MAX-16], vm_cfg_file[buffer_slice];
 	GHashTable *cfg = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
 	print_gpl_banner();
-	
+
 	if (program_find_vm_location(argc, argv, vm_name, vm_dir, vm_cfg_file) && 
 		program_get_cfg_values(cfg, vm_dir) &&
 		config_load(vm_cfg_file, cfg) &&
-		program_build_cmd_line(cfg, vm_dir, vm_name, cmd))
+		program_build_cmd_line(cfg, vm_name, cmd))
 	{
 		printf("Command line arguments:\n%s\n", cmd);
 		system(cmd);
