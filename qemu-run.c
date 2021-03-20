@@ -15,8 +15,13 @@ along with qemu-run; see the file LICENSE.  If not see <http://www.gnu.org/licen
 #include <strings.h>
 #include <ctype.h>
 #include <unistd.h>
-#include <linux/limits.h>
+#if defined(__WIN32__) || defined(__WIN64__) || defined(__WINNT__) || defined(__DOS__)
+#include <limits.h>
+#else
+#define __NIX__
 #include <sys/sysinfo.h>
+#include <linux/limits.h>
+#endif
 #include <sys/stat.h>
 #include <sys/types.h>
 #include "hashmap.h"
@@ -43,7 +48,7 @@ along with qemu-run; see the file LICENSE.  If not see <http://www.gnu.org/licen
 
 #define append_to_cmd(cmd, val) \
 	append_to_char_arr(cmd, val, 0, 1, ' ')
-	
+
 #define add_cfg_val(val_tmp_ptr, str_pool_ptr, cfg, lkey, val) \
 	val_tmp_ptr = *str_pool_ptr; \
 	append_to_strpool(str_pool_ptr, val); \
@@ -124,7 +129,11 @@ bool program_load_config(char *err, struct hashmap_s *cfg, char **str_pool, cons
 
 bool program_set_default_cfg_values(struct hashmap_s *cfg, char **str_pool, char *vm_dir) {
 	char path_buff[PATH_MAX], nproc_str[4], *val_tmp;
+#ifdef __NIX__
 	snprintf(nproc_str, 4, "%d", get_nprocs());
+#else
+   strcpy(nproc_str,"2");
+#endif
 	add_cfg_val(val_tmp, str_pool, cfg, "sys", "x64");
 	add_cfg_val(val_tmp, str_pool, cfg, "efi", "no");
 	add_cfg_val(val_tmp, str_pool, cfg, "cpu", "host");
@@ -182,7 +191,7 @@ bool program_build_cmd_line(char *err, struct hashmap_s *cfg, char *vm_name, cha
 		strcpy(err, "Invalid value for sys");
 		return 0;
 	}
-	
+
 	snprintf(cmd_slice, buff_size_slice, "%s-name %s -cpu %s -smp %s -m %s -boot order=%s -usb -device usb-tablet -vga %s %s%s",
 		vm_has_acc_enabled ? "--enable-kvm " : "",
 		vm_has_name ? vm_name : "QEMU",
@@ -204,7 +213,7 @@ bool program_build_cmd_line(char *err, struct hashmap_s *cfg, char *vm_name, cha
 	} else {
 		out_cmd = append_to_cmd(out_cmd, vm_has_videoacc ? "-display gtk,gl=on" : "-display gtk,gl=off");
 	}
-	
+
 	if (vm_has_network) {
 		snprintf(cmd_slice, buff_size_slice, "-nic user,model=%s%s%s",
 			(char*)hashmap_get_lk(cfg, "net"),
@@ -232,21 +241,21 @@ bool program_build_cmd_line(char *err, struct hashmap_s *cfg, char *vm_name, cha
 			out_cmd = append_to_cmd(out_cmd, cmd_slice);
 		}
 	}
-	
+
 	cfg_v = hashmap_get_lk(cfg, "floppy");
 	if (path_is_file((const char*) cfg_v)) {
 		snprintf(cmd_slice, buff_size_slice, "-drive index=%d,file=%s,if=floppy,format=raw", drive_index, (char*)cfg_v);
 		out_cmd = append_to_cmd(out_cmd, cmd_slice);
 		drive_index++;
 	}
-	
+
 	cfg_v = hashmap_get_lk(cfg, "cdrom");
 	if (path_is_file((const char*) cfg_v)) {
 		snprintf(cmd_slice, buff_size_slice, "-drive index=%d,file=%s,media=cdrom", drive_index, (char*)cfg_v);
 		out_cmd = append_to_cmd(out_cmd, cmd_slice);
 		drive_index++;
 	}
-	
+
 	cfg_v = hashmap_get_lk(cfg, "disk");
 	if (path_is_file((const char*) cfg_v)) {
 		snprintf(cmd_slice, buff_size_slice, "-drive index=%d,file=%s%s", drive_index, (char*)cfg_v, vm_has_hddvirtio ? ",if=virtio" : "");
@@ -269,7 +278,7 @@ bool program_find_vm_location(char *err, int argc, char **argv, char *out_vm_nam
 		strcpy(err, "Invalid argument count. Did you specified the VM Name?");
 		return 0;
 	}
-	
+
 	char vm_dir_env_str[buff_size_max], *vm_dir_env_delim = ";";
 	strcpy(vm_dir_env_str, getenv("QEMURUN_VM_PATH"));
 
