@@ -6,7 +6,7 @@ CFLAGS=-O2 -s -mtune=generic
 DOCKER_CONT_NAME=buildenv-qemu-run
 
 all: build
-.PHONY: build
+.PHONY: build docker clean
 
 build:
 	${CC} ${CSTD} ${CFLAGS} qemu-run.c -o qemu-run.bin
