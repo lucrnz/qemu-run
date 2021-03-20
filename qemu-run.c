@@ -285,37 +285,34 @@ bool program_build_cmd_line(char *err, struct hashmap_s *cfg, char *vm_name, cha
 
 bool program_find_vm_location(char *err, int argc, char **argv, char *out_vm_name, char *out_vm_dir, char *out_vm_cfg_file) {
 	bool rc = 0, vm_dir_exists = 0;
-	char *vm_name, vm_dir[buff_size_slice-16];
+	char *vm_name, vm_dir[PATH_MAX+1];
 
+   dprint();
 	if (argc > 1) {
 		vm_name = argv[1];
 	} else {
 		strcpy(err, "Invalid argument count. Did you specified the VM Name?");
 		return 0;
 	}
-   dprint();
-	char vm_dir_env_str[buff_size_max],*env;
+
+	char vm_dir_env_str[PATH_MAX*16],*env;
 
 	strcpy(vm_dir_env_str, (const char *)((env=getenv("QEMURUN_VM_PATH"))?env:""));
-   puts(env);
+
 	char *vm_dir_env = strtok(vm_dir_env_str, PSEP);
 	while ( vm_dir_env != NULL && vm_dir_exists == 0 ) {
-      dprint();
 		snprintf(vm_dir, PATH_MAX, "%s"DSEP"%s", vm_dir_env, vm_name);
-      puts(vm_dir);
 		vm_dir_exists = filetype(vm_dir,FT_PATH);
 		vm_dir_env = strtok(NULL, PSEP);
 	}
 	if (vm_dir_exists) {
-	   dprint();
-		char cfg_file[PATH_MAX];
+		char cfg_file[PATH_MAX+1];
 		snprintf(cfg_file, PATH_MAX, "%s"DSEP"config", vm_dir);
 		strcpy(out_vm_name, vm_name);
 		strcpy(out_vm_dir, vm_dir);
 		strcpy(out_vm_cfg_file, cfg_file);
 		rc = 1;
 	} else {
-	   dprint();
 		strcpy(err, "Cannot find VM, Check your QEMURUN_VM_PATH env. variable ?");
 	}
 
@@ -327,17 +324,19 @@ int main(int argc, char **argv) {
 	char vm_name[buff_size_slice], vm_dir[PATH_MAX-16], vm_cfg_file[buff_size_slice];
 	char *str_pool = &str_pool_d[0];
 	struct hashmap_s cfg;
-	puts_gpl_banner();
 	dprint();
+	puts_gpl_banner();
 	if (hashmap_create(16, &cfg) == 0 &&
 		program_find_vm_location(err, argc, argv, vm_name, vm_dir, vm_cfg_file) &&
 		program_set_default_cfg_values(&cfg, &str_pool, vm_dir) &&
 		program_load_config(err, &cfg, &str_pool, vm_cfg_file) &&
 		program_build_cmd_line(err, &cfg, vm_name, cmd))
 	{
-		puts("Command line arguments:");
+		puts("QEMU Command line arguments:");
 		puts(cmd);
-		system(cmd);
+		if (system(cmd) == -1) {
+			puts("There was an error trying to execute qemu. Do you have it installed?.");
+		}
 	} else {
 		puts("There was an error in the program:");
 		puts(err);
