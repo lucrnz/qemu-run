@@ -160,7 +160,7 @@ void program_set_default_cfg_values(struct hashmap_s *cfg, char **str_pool, char
 	add_cfg_val(val_tmp, str_pool, cfg, "sys", "x64");
 	add_cfg_val(val_tmp, str_pool, cfg, "efi", "no");
 	add_cfg_val(val_tmp, str_pool, cfg, "cpu", "host");
-	add_cfg_val(val_tmp, str_pool, cfg, "cores", "1");
+	add_cfg_val(val_tmp, str_pool, cfg, "cores", "2");
 	add_cfg_val(val_tmp, str_pool, cfg, "mem", "2G");
 	add_cfg_val(val_tmp, str_pool, cfg, "acc", "yes");
 	add_cfg_val(val_tmp, str_pool, cfg, "vga", "virtio");
