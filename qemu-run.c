@@ -160,28 +160,22 @@ void program_set_default_cfg_values(struct hashmap_s *cfg, char **str_pool, char
 	add_cfg_val(val_tmp, str_pool, cfg, "sys", "x64");
 	add_cfg_val(val_tmp, str_pool, cfg, "efi", "no");
 #ifdef __WINDOWS__
+	add_cfg_val(val_tmp, str_pool, cfg, "acc", "no");
 	add_cfg_val(val_tmp, str_pool, cfg, "cpu", "max");
+	add_cfg_val(val_tmp, str_pool, cfg, "rng_dev", "no");
 #else
+	add_cfg_val(val_tmp, str_pool, cfg, "acc", "yes");
 	add_cfg_val(val_tmp, str_pool, cfg, "cpu", "host");
+	add_cfg_val(val_tmp, str_pool, cfg, "rng_dev", "yes");
 #endif
 	add_cfg_val(val_tmp, str_pool, cfg, "cores", "2");
 	add_cfg_val(val_tmp, str_pool, cfg, "mem", "2G");
-#ifdef __WINDOWS__
-	add_cfg_val(val_tmp, str_pool, cfg, "acc", "no");
-#else
-	add_cfg_val(val_tmp, str_pool, cfg, "acc", "yes");
-#endif
 	add_cfg_val(val_tmp, str_pool, cfg, "vga", "virtio");
 	add_cfg_val(val_tmp, str_pool, cfg, "snd", "hda");
 	add_cfg_val(val_tmp, str_pool, cfg, "boot", "c");
 	add_cfg_val(val_tmp, str_pool, cfg, "fwd_ports", "2222:22");
 	add_cfg_val(val_tmp, str_pool, cfg, "hdd_virtio", "yes");
 	add_cfg_val(val_tmp, str_pool, cfg, "net", "virtio-net-pci");
-#ifdef __WINDOWS__
-	add_cfg_val(val_tmp, str_pool, cfg, "rng_dev", "no");
-#else
-	add_cfg_val(val_tmp, str_pool, cfg, "rng_dev", "yes");
-#endif
 	add_cfg_val(val_tmp, str_pool, cfg, "host_video_acc", "no");
 	add_cfg_val(val_tmp, str_pool, cfg, "localtime", "no");
 	add_cfg_val(val_tmp, str_pool, cfg, "headless", "no");
