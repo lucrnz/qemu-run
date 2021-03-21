@@ -101,6 +101,14 @@ int filetype(const char *fpath,int type) {
 	return ret=(type)?ret==type:ret;
 }
 
+char* cstr_remove_quotes(char* c) {
+	size_t len = strlen(c);
+	if (c[len-1] == '\"' && c[0] == '\"') {
+		c[len-1] = '\0';
+		return c+1;
+	} else { return c; }
+}
+
 size_t cstr_trim_right(const char *cstr, const size_t len) {
 	size_t diff = 0;
 	dprint();
@@ -181,13 +189,13 @@ void program_set_default_cfg_values(struct hashmap_s *cfg, char **str_pool, char
 	add_cfg_val(val_tmp, str_pool, cfg, "headless", "no");
 	add_cfg_val(val_tmp, str_pool, cfg, "vnc_pwd", "");
 	add_cfg_val(val_tmp, str_pool, cfg, "monitor_port", "5510");
-	snprintf(path_buff, PATH_MAX, "%s/shared", vm_dir);
+	snprintf(path_buff, PATH_MAX, "%s"DSEP"shared", vm_dir);
 	add_cfg_val(val_tmp, str_pool, cfg, "shared", filetype(path_buff,FT_PATH) ? path_buff : "");
-	snprintf(path_buff, PATH_MAX, "%s/floppy", vm_dir);
+	snprintf(path_buff, PATH_MAX, "%s"DSEP"floppy", vm_dir);
 	add_cfg_val(val_tmp, str_pool, cfg, "floppy", filetype(path_buff,FT_FILE) ? path_buff : "");
-	snprintf(path_buff, PATH_MAX, "%s/cdrom", vm_dir);
+	snprintf(path_buff, PATH_MAX, "%s"DSEP"cdrom", vm_dir);
 	add_cfg_val(val_tmp, str_pool, cfg, "cdrom", filetype(path_buff,FT_FILE) ? path_buff : "");
-	snprintf(path_buff, PATH_MAX, "%s/disk", vm_dir);
+	snprintf(path_buff, PATH_MAX, "%s"DSEP"disk", vm_dir);
 	add_cfg_val(val_tmp, str_pool, cfg, "disk", filetype(path_buff,FT_FILE) ? path_buff : "");
 }
 
@@ -303,7 +311,7 @@ void program_find_vm_location(int argc, char **argv, char *out_vm_name, char *ou
 	strcpy(vm_dir_env_str, (const char *)((env=getenv("QEMURUN_VM_PATH"))?env:""));
 	char *vm_dir_env = strtok(vm_dir_env_str, PSEP);
 	while ( vm_dir_env && vm_dir_exists == 0 ) {
-		snprintf(vm_dir, sizeof(vm_dir), "%s"DSEP"%s", vm_dir_env, vm_name);
+		snprintf(vm_dir, sizeof(vm_dir), "%s"DSEP"%s", cstr_remove_quotes(vm_dir_env), vm_name);
 		vm_dir_exists = filetype(vm_dir,FT_PATH);
 		vm_dir_env = strtok(NULL, PSEP);
 	}
