@@ -23,11 +23,12 @@ along with qemu-run; see the file LICENSE.  If not see <http://www.gnu.org/licen
 #define PSEP ":"
 #define DSEP "/"
 #ifdef __linux__
+#include <unistd.h>
 #include <linux/limits.h>
 #else
 #include <limits.h>
-#endif // def Linux
-#endif
+#endif // __linux__
+#endif // __NIX__
 #include <sys/stat.h>
 #include <sys/types.h>
 #include "hashmap.h"
@@ -37,6 +38,11 @@ along with qemu-run; see the file LICENSE.  If not see <http://www.gnu.org/licen
 #else
 #define dprint()
 #endif // DEBUG
+
+#ifndef stricmp //GCC is weird sometimes it doesn't includes this..
+#include <strings.h>
+#define stricmp(x, y) strcasecmp(x, y)
+#endif
 
 #define buff_size_slice 128
 #define buff_size_max buff_size_slice*32
@@ -118,6 +124,26 @@ size_t cstr_trim_right(const char *cstr, const size_t len) {
 	}
 	return len - diff;
 }
+
+#ifdef __WINDOWS__ // For now I only need this function on Windows.
+bool get_binary_full_path(const char *bin_fname, char *out_bin_fpath, char *out_dir) {
+	bool found = 0;
+    char fpath_b[PATH_MAX], env_b[PATH_MAX*16], *env;
+    strcpy(env_b, (const char *)((env=getenv("PATH"))?env:""));
+    char *dir_p = strtok(env_b, PSEP);
+    while (dir_p && !found) {
+    	char* dir_pq = cstr_remove_quotes(dir_p);
+        snprintf(fpath_b, sizeof(fpath_b), "%s"DSEP"%s", dir_pq, bin_fname); found = filetype(fpath_b, FT_FILE);
+        if (!found) { snprintf(fpath_b, sizeof(fpath_b), "%s"DSEP"%s.exe", dir_pq, bin_fname); found = filetype(fpath_b, FT_FILE); }
+        if (!found) { snprintf(fpath_b, sizeof(fpath_b), "%s"DSEP"%s.bat", dir_pq, bin_fname); found = filetype(fpath_b, FT_FILE); }
+        if (!found) { snprintf(fpath_b, sizeof(fpath_b), "%s"DSEP"%s.com", dir_pq, bin_fname); found = filetype(fpath_b, FT_FILE); }
+        if (found && out_dir) { strcpy(out_dir, dir_pq); }
+        dir_p = strtok(NULL, PSEP);
+    }
+    if (found && out_bin_fpath) { strcpy(out_bin_fpath, fpath_b); }
+    return found;
+}
+#endif
 
 bool process_kv_pair(char *kv_cstr, struct hashmap_s *cfg, char **str_pool, char delim) {
 	bool rc = 0, setting_key = 1, trimming_left = 1;
@@ -204,14 +230,16 @@ void program_build_cmd_line(struct hashmap_s *cfg, char *vm_name, char *out_cmd)
 	void* cfg_v;
 	char cmd_slice[buff_size_slice] = {0};
 	dprint();
+#ifdef __WINDOWS__
+	char* cmd_sp = out_cmd; // Need this variable, for a Windows fix..
+#else
+	bool vm_has_rngdev = hashmap_match_char_lka(cfg, "rng_dev", "yes");
+#endif
 	bool vm_has_name = (strcmp(vm_name, "") != 0 ? 1 : 0);
 	bool vm_has_acc_enabled = hashmap_match_char_lka(cfg, "acc", "yes");
 	bool vm_has_vncpwd = (strcmp(hashmap_get_lk(cfg, "vnc_pwd"), "") != 0 ? 1 : 0);
 	bool vm_has_audio = hashmap_match_char_lka(cfg, "snd", "no");
 	bool vm_has_videoacc = hashmap_match_char_lka(cfg, "host_video_acc", "yes");
-#ifndef __WINDOWS__
-	bool vm_has_rngdev = hashmap_match_char_lka(cfg, "rng_dev", "yes");
-#endif
 	bool vm_is_headless = hashmap_match_char_lka(cfg, "headless", "yes");
 	bool vm_clock_is_localtime = hashmap_match_char_lka(cfg, "localtime", "yes");
 	bool vm_has_sharedf = (strcmp(hashmap_get_lk(cfg, "shared"), "") != 0 ? 1 : 0);
@@ -296,7 +324,19 @@ void program_build_cmd_line(struct hashmap_s *cfg, char *vm_name, char *out_cmd)
 		out_cmd = append_to_cmd(out_cmd, cmd_slice);
 		drive_index++;
 	}
-#ifndef __WINDOWS__
+
+#ifdef __WINDOWS__
+	/* QEMU on Windows needs, for some reason, to have an additional argument with the program path on it,
+	* For example if you have it on: "C:\Program Files\Qemu", You have to run it like this: qemu-system-i386.exe -L "C:\Program Files\Qemu"
+	* Otherwise it wont find the BIOS file.. */
+	char q_fp[buff_size_slice], q_fn[buff_size_slice], wfix_arg[buff_size_slice+6];
+	size_t q_fn_l = 0;
+	for (; cmd_sp[q_fn_l] && cmd_sp[q_fn_l] != ' '; q_fn_l++) { q_fn[q_fn_l] = cmd_sp[q_fn_l]; } // Copy the qemu exe file name
+	q_fn[q_fn_l] = 0;
+	if (! get_binary_full_path(q_fn, NULL, &q_fp[0])) { fatal(ERR_EXEC); } // Grab Qemu EXE file path, using PATH env.
+	snprintf(wfix_arg, sizeof(wfix_arg), "-L \"%s\"", q_fp);
+	out_cmd = append_to_cmd(out_cmd, wfix_arg); // Appened the command line argument.
+#else
 	if (vm_has_rngdev) out_cmd = append_to_cmd(out_cmd, "-object rng-random,id=rng0,filename=/dev/random -device virtio-rng-pci,rng=rng0");
 #endif
 	if (vm_clock_is_localtime) out_cmd = append_to_char_arr(out_cmd, "-rtc base=localtime", 1, 0, 0);
