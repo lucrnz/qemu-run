@@ -329,7 +329,7 @@ void program_build_cmd_line(struct hashmap_s *cfg, char *vm_name, char *out_cmd)
 	/* QEMU on Windows needs, for some reason, to have an additional argument with the program path on it,
 	* For example if you have it on: "C:\Program Files\Qemu", You have to run it like this: qemu-system-i386.exe -L "C:\Program Files\Qemu"
 	* Otherwise it wont find the BIOS file.. */
-	char q_fp[buff_size_slice], q_fn[buff_size_slice], wfix_arg[buff_size_slice+6];
+	char q_fp[buff_size_slice], q_fn[buff_size_slice], wfix_arg[buff_size_slice+6]={0};
 	size_t q_fn_l = 0;
 	for (; cmd_sp[q_fn_l] && cmd_sp[q_fn_l] != ' '; q_fn_l++) { q_fn[q_fn_l] = cmd_sp[q_fn_l]; } // Copy the qemu exe file name
 	q_fn[q_fn_l] = 0;
