@@ -310,7 +310,6 @@ void program_find_vm_location(int argc, char **argv, char *out_vm_name, char *ou
 	char *vm_dir_env = strtok(vm_dir_env_str, PSEP);
 	while ( vm_dir_env && vm_dir_exists == 0 ) {
 		snprintf(vm_dir, sizeof(vm_dir), "%s"DSEP"%s", vm_dir_env, vm_name);
-		printf("%s\n", vm_dir);
 		vm_dir_exists = filetype(vm_dir,FT_PATH);
 		vm_dir_env = strtok(NULL, PSEP);
 	}
