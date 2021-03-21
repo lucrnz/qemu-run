@@ -143,9 +143,9 @@ bool process_kv_pair(char *kv_cstr, struct hashmap_s *cfg, char **str_pool, char
 void program_load_config(struct hashmap_s *cfg, char **str_pool, const char *fpath) {
 	FILE *fptr = fopen(fpath, "r");
 	dprint();
-	if (fptr == NULL) { fatal(ERR_CONFIG); }
+	if (!fptr) { fatal(ERR_CONFIG); }
 	char line[buff_size_slice*2];
-	while(fgets(line, buff_size_slice*2, fptr) != NULL) {
+	while(fgets(line, buff_size_slice*2, fptr)) {
 		size_t ll = strlen(line);
 		if (line[ll-1] == '\n') {line[ll-1] = '\0'; } // Truncate New line.
 		if (line[ll-1] == EOF) {line[ll-1] = '\0'; } // Truncate EOF
@@ -222,8 +222,7 @@ void program_build_cmd_line(struct hashmap_s *cfg, char *vm_name, char *out_cmd)
 		out_cmd = append_to_cmd(out_cmd, "qemu-system-i386");
 	} else if (strcmp((const char*)cfg_v, "x64") == 0) {
 		out_cmd = append_to_cmd(out_cmd, "qemu-system-x86_64");
-	} else
-		fatal(ERR_SYS);
+	} else { fatal(ERR_SYS); }
 
 	snprintf(cmd_slice, buff_size_slice, "%s-name %s -cpu %s -smp %s -m %s -boot order=%s -usb -device usb-tablet -vga %s %s%s",
 		vm_has_acc_enabled ? "--enable-kvm " : "",
@@ -260,10 +259,10 @@ void program_build_cmd_line(struct hashmap_s *cfg, char *vm_name, char *out_cmd)
 			out_cmd = append_to_char_arr(out_cmd, " ", 0, 0, 0);
 		} else {
 			char* cfg_v_c = (char*)cfg_v;
-			if (strstr(cfg_v_c, ":") != NULL) { // If have fwd_ports=<HostPort>:<GuestPort>
+			if (strstr(cfg_v_c, ":")) { // If have fwd_ports=<HostPort>:<GuestPort>
 				char *fwd_ports_tk = strtok(cfg_v_c, ":");
 				char fwd_port_a[16], fwd_port_b[16];
-				for (int i = 0; fwd_ports_tk != NULL && i<2; i++) {
+				for (int i = 0; fwd_ports_tk && i<2; i++) {
 					strcpy(i == 0 ? fwd_port_a : fwd_port_b, fwd_ports_tk);
 					fwd_ports_tk = strtok(NULL, ":");
 				}
@@ -303,13 +302,13 @@ void program_build_cmd_line(struct hashmap_s *cfg, char *vm_name, char *out_cmd)
 
 void program_find_vm_location(int argc, char **argv, char *out_vm_name, char *out_vm_dir, char *out_vm_cfg_file) {
 	dprint();
-	if (argc < 1) fatal(ERR_ARGS);
+	if (argc < 1) { fatal(ERR_ARGS); }
 	char *vm_name, vm_dir[PATH_MAX+1], vm_dir_env_str[PATH_MAX*16],*env;
 	bool vm_dir_exists = 0;
 	vm_name = argv[1];
 	strcpy(vm_dir_env_str, (const char *)((env=getenv("QEMURUN_VM_PATH"))?env:""));
 	char *vm_dir_env = strtok(vm_dir_env_str, PSEP);
-	while ( vm_dir_env != NULL && vm_dir_exists == 0 ) {
+	while ( vm_dir_env && vm_dir_exists == 0 ) {
 		snprintf(vm_dir, sizeof(vm_dir), "%s"DSEP"%s", vm_dir_env, vm_name);
 		printf("%s\n", vm_dir);
 		vm_dir_exists = filetype(vm_dir,FT_PATH);
