@@ -13,7 +13,7 @@ build:
 
 docker:
 	docker rmi ${DOCKER_CONT_NAME}:latest || test 1
-	docker build -t ${DOCKER_CONT_NAME} .
+	docker build --force-rm --no-cache -t ${DOCKER_CONT_NAME} .
 	docker run -it -v ${PWD}:/app -w /app ${DOCKER_CONT_NAME} make
 	docker rmi -f ${DOCKER_CONT_NAME}:latest
 
