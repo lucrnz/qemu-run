@@ -79,7 +79,6 @@ long sym_hash_generate(char *str)
    int pos=0;
    long hash=0xCAFEBABE;
 
-   dprint();
    while(str[pos]) {
       hash=~(((((hash&0xFF)^str[pos])<<5)|
          (((hash>>26)&0x1f)^(pos&31)))|
@@ -93,7 +92,6 @@ bool sym_put_kv(char *key,char *val)
 {
    long hash,cnt=0,ret=0;
 
-   dprint();
    hash=sym_hash_generate(key);
    while(cnt<KEY_ENDLIST) {
       if(hash==cfg[cnt].hash) {
@@ -123,13 +121,10 @@ enum {FT_TYPE,FT_UNKNOWN=0,FT_PATH,FT_FILE};
 int filetype(const char *fpath,int type) {
 	int ret = 0; struct stat sb;
 
-	dprint();
-	printf("('%s',%d)=",fpath,type);
 	if ((ret=(access (fpath,0) == 0))) {
 		stat(fpath,&sb);
 		ret=S_ISREG(sb.st_mode)>0?FT_FILE:(S_ISDIR(sb.st_mode)?FT_PATH:FT_UNKNOWN);
 	}
-   printf("%d\n",ret);
 	return ret=(type)?ret==type:ret;
 }
 
@@ -166,8 +161,8 @@ bool get_binary_full_path(const char *bin_fname, char *out_bin_fpath, char *out_
     	char* dir_pq = cstr_remove_quotes(dir_p);
         snprintf(fpath_b, sizeof(fpath_b), "%s"DSEP"%s", dir_pq, bin_fname); found = filetype(fpath_b, FT_FILE);
         if (!found) { snprintf(fpath_b, sizeof(fpath_b), "%s"DSEP"%s.exe", dir_pq, bin_fname); found = filetype(fpath_b, FT_FILE); }
-        if (!found) { snprintf(fpath_b, sizeof(fpath_b), "%s"DSEP"%s.bat", dir_pq, bin_fname); found = filetype(fpath_b, FT_FILE); }
         if (!found) { snprintf(fpath_b, sizeof(fpath_b), "%s"DSEP"%s.com", dir_pq, bin_fname); found = filetype(fpath_b, FT_FILE); }
+        if (!found) { snprintf(fpath_b, sizeof(fpath_b), "%s"DSEP"%s.bat", dir_pq, bin_fname); found = filetype(fpath_b, FT_FILE); }
         if (found && out_dir) { strcpy(out_dir, dir_pq); }
         dir_p = strtok(NULL, PSEP);
     }
@@ -177,29 +172,42 @@ bool get_binary_full_path(const char *bin_fname, char *out_bin_fpath, char *out_
 #endif
 
 bool process_kv_pair(char *kv_cstr, char delim) {
-	bool rc = 0, setting_key = 1, trimming_left = 1;
-	char val_buff[LINE_MAX], key_buff[LINE_MAX], *key_ptr, *val_ptr;
+	bool rc = 0;
+	char val_buff[LINE_MAX], key_buff[LINE_MAX], *key_ptr, *val_ptr, *del_ptr;
 	size_t val_len = 0, key_len = 0;
 
 	dprint();
-	for (char c = 0; (c = *kv_cstr) != '\0'; kv_cstr++) {
-		if (c == delim) { setting_key = 0; trimming_left = 1; continue; }
-		if (setting_key && trimming_left && !isspace(c)) {
-			trimming_left = 0; key_buff[key_len] = c; key_len++;
-		} else if (setting_key && !trimming_left)  {
-			key_buff[key_len] = c; key_len++;
-		} else if (!setting_key && trimming_left && !isspace(c)) {
-			trimming_left = 0; val_buff[val_len] = c; val_len++;
-		} else if (!setting_key && !trimming_left) {
-			val_buff[val_len] = c; val_len++;
-		}
+	printf("process_kv_pair(\"%s\", '%c' (%d)))\n",kv_cstr,delim,delim);
+	if((del_ptr=strchr(kv_cstr,delim))) {
+      key_ptr=kv_cstr;
+      while(key_ptr<del_ptr) {   // Adjust pointer, skip spaces
+         if(!(*key_ptr==' ' || *key_ptr=='\t')) break;
+         key_ptr++;
+      }
+      val_ptr=del_ptr+1;
+      while(--del_ptr>=key_ptr) { // Adjust end pointer, skip spaces
+         if(!(*del_ptr==' ' || *del_ptr=='\t')) break;
+      }
+      ++del_ptr;
+      key_len=(del_ptr-key_ptr);
+      while(*val_ptr) {
+         if(!(*val_ptr==' ' || *val_ptr=='\t')) break;
+         val_ptr++;
+      }
+      val_len=0;
+      while(val_ptr[val_len]) val_len++;
+      while(val_len) {
+         if(!(val_ptr[val_len-1]==' ' || val_ptr[val_len-1]=='\t')) break;
+         --val_len;
+      }
 	}
-	if (! setting_key) { // If we actually did set a value.
-		key_buff[key_len] = '\0'; val_buff[val_len] = '\0';
-		key_len = cstr_trim_right(key_buff, key_len);
-		val_len = cstr_trim_right(val_buff, val_len);
-		key_buff[key_len] = '\0'; val_buff[val_len] = '\0';
-		rc = (sym_put_kv(key_ptr, val_ptr) != 0);
+	if(key_len) {
+      strncpy(key_buff,key_ptr,key_len);
+      if(val_len)
+         strncpy(val_buff,val_ptr,val_len);
+      else
+         val_buff[0]=0;
+      rc=sym_put_kv(key_buff,val_buff);
 	}
 	return rc;
 }
@@ -229,13 +237,13 @@ void program_set_default_cfg_values(char *vm_dir) {
 	sym_put_kv("cpu", "max");
 	sym_put_kv("rng_dev", "no");
 #endif
-	snprintf(path_buff, PATH_MAX, "%s/shared", vm_dir);
+	snprintf(path_buff, PATH_MAX, "%s"DSEP"shared", vm_dir);
 	sym_put_kv("shared", filetype(path_buff,FT_PATH) ? path_buff : "");
-	snprintf(path_buff, PATH_MAX, "%s/floppy", vm_dir);
+	snprintf(path_buff, PATH_MAX, "%s"DSEP"floppy", vm_dir);
 	sym_put_kv("floppy", filetype(path_buff,FT_FILE) ? path_buff : "");
-	snprintf(path_buff, PATH_MAX, "%s/cdrom", vm_dir);
+	snprintf(path_buff, PATH_MAX, "%s"DSEP"cdrom", vm_dir);
 	sym_put_kv("cdrom", filetype(path_buff,FT_FILE) ? path_buff : "");
-	snprintf(path_buff, PATH_MAX, "%s/disk", vm_dir);
+	snprintf(path_buff, PATH_MAX, "%s"DSEP"disk", vm_dir);
 	sym_put_kv("disk", filetype(path_buff,FT_FILE) ? path_buff : "");
 }
 
@@ -266,7 +274,6 @@ void program_build_cmd_line(char *vm_name, char *out_cmd) {
 	} else if (strcmp(cfg[KEY_SYS].val, "x64") == 0) {
 		out_cmd = strcpy(out_cmd, "qemu-system-x86_64");
 	} else { fatal(ERR_SYS); }
-   dprint();
 	snprintf(cmd_slice, LINE_MAX, " %s-name %s -cpu %s -smp %s -m %s -boot order=%s -usb -device usb-tablet -vga %s %s%s",
 		vm_has_acc_enabled ? "--enable-kvm " : "",
 		vm_has_name ? vm_name : "QEMU",
@@ -279,7 +286,6 @@ void program_build_cmd_line(char *vm_name, char *out_cmd) {
 		vm_has_audio ? cfg[KEY_SND].val : ""
 	);
 	strcat(out_cmd, cmd_slice);
-   dprint();
 
 	if (vm_is_headless) {
 		snprintf(cmd_slice, LINE_MAX, " -display none -monitor telnet:127.0.0.1:%d,server,nowait -vnc %s",
@@ -290,65 +296,50 @@ void program_build_cmd_line(char *vm_name, char *out_cmd) {
 		strcat(out_cmd, vm_has_videoacc ? " -display gtk,gl=on" : " -display gtk,gl=off");
 	}
 
-   dprint();
 	if (vm_has_network) {
 		snprintf(cmd_slice, LINE_MAX, " -nic user,model=%s%s%s",
 			cfg[KEY_NET].val,
 			vm_has_sharedf ? ",smb=" : "",
 			vm_has_sharedf ? cfg[KEY_SHARED].val : ""
 		);
-   dprint();
 		out_cmd = strcat(out_cmd, cmd_slice);
-   dprint();
 		bool vm_has_fwd_ports = (strcmp(cfg[KEY_FWD_PORTS].val, "no") != 0);
 		if (! vm_has_fwd_ports) {
 			out_cmd = strcat(out_cmd, " ");
-   dprint();
 		} else {
 			char* cfg_v_c = strdup(cfg[KEY_FWD_PORTS].val);
-   dprint();
 			if (strchr(cfg_v_c, ':') != NULL) { // If have fwd_ports=<HostPort>:<GuestPort>
 				char *fwd_ports_tk = strtok(cfg_v_c, ":");
 				char fwd_port_a[16], fwd_port_b[16];
-   dprint();
 				for (int i = 0; fwd_ports_tk && i<2; i++) {
-   dprint();
 					strcpy(i == 0 ? fwd_port_a : fwd_port_b, fwd_ports_tk);
 					fwd_ports_tk = strtok(NULL, ":");
 				}
-   dprint();
 				snprintf(cmd_slice, LINE_MAX, ",hostfwd=tcp::%s-:%s,hostfwd=udp::%s-:%s", fwd_port_a, fwd_port_b, fwd_port_a, fwd_port_b);
-   dprint();
 			} else { // Else use the same port for Host and Guest.
 				snprintf(cmd_slice, LINE_MAX, ",hostfwd=tcp::%s-:%s,hostfwd=udp::%s-:%s", cfg_v_c, cfg_v_c, cfg_v_c, cfg_v_c);
-   dprint();
 			}
 			strcat(out_cmd, cmd_slice);
-   dprint();
 		}
 	}
-   dprint();
 
 	if (filetype((const char*) cfg[KEY_FLOPPY].val,FT_FILE)) {
 		snprintf(cmd_slice, LINE_MAX, " -drive index=%d,file=%s,if=floppy,format=raw", drive_index, cfg[KEY_FLOPPY].val);
 		strcat(out_cmd, cmd_slice);
 		drive_index++;
 	}
-   dprint();
 
 	if (filetype(cfg[KEY_CDROM].val,FT_FILE)) {
 		snprintf(cmd_slice, LINE_MAX, " -drive index=%d,file=%s,media=cdrom", drive_index, cfg[KEY_CDROM].val);
 		strcat(out_cmd, cmd_slice);
 		drive_index++;
 	}
-   dprint();
 
 	if (filetype(cfg[KEY_DISK].val,FT_FILE)) {
 		snprintf(cmd_slice, LINE_MAX, " -drive index=%d,file=%s%s", drive_index, cfg[KEY_DISK].val, vm_has_hddvirtio ? ",if=virtio" : "");
 		strcat(out_cmd, cmd_slice);
 		drive_index++;
 	}
-   dprint();
 
 #ifdef __WINDOWS__
 	/* QEMU on Windows needs, for some reason, to have an additional argument with the program path on it,
@@ -399,6 +390,7 @@ int main(int argc, char **argv) {
 	program_find_vm_location(argc, argv, vm_name, vm_dir, vm_cfg_file);
    program_set_default_cfg_values(vm_dir);
    program_load_config(vm_cfg_file);
+   for(int i=0;i<KEY_ENDLIST;i++) printf("%d %X='%s'\n",i,cfg[i].hash,cfg[i].val);
    program_build_cmd_line(vm_name, cmd);
 	puts("QEMU Command line arguments:");
 	puts(cmd);
