@@ -167,7 +167,6 @@ bool process_kv_pair(char *kv_cstr, char delim) {
 	bool rc = 0;
 	char val_buff[LINE_MAX], key_buff[LINE_MAX], *key_ptr, *val_ptr, *del_ptr;
 	size_t val_len = 0, key_len = 0;
-
 	dprint();
 #ifdef DEBUG
 	printf("process_kv_pair(\"%s\", '%c' (%d)))\n",kv_cstr,delim,delim);
@@ -182,7 +181,6 @@ bool process_kv_pair(char *kv_cstr, char delim) {
 		while(--del_ptr>=key_ptr) { // Adjust end pointer, skip spaces
 			if(!(*del_ptr==' ' || *del_ptr=='\t')) break;
 		}
-		++del_ptr;
 		key_len=(del_ptr-key_ptr);
 		while(*val_ptr) {
 			if(!(*val_ptr==' ' || *val_ptr=='\t')) break;
@@ -191,7 +189,7 @@ bool process_kv_pair(char *kv_cstr, char delim) {
 		val_len=0;
 		while(val_ptr[val_len]) val_len++;
 		while(val_len) {
-			if(!(val_ptr[val_len-1]==' ' || val_ptr[val_len-1]=='\t')) break;
+			if(!(val_ptr[val_len-1] == 0 || val_ptr[val_len-1]==' ' || val_ptr[val_len-1]=='\t')) break;
 			--val_len;
 		}
 	}
@@ -216,9 +214,10 @@ void program_load_config(const char *fpath) {
 	if (!fptr) { fatal(ERR_CONFIG); }
 	char line[LINE_AVG*2];
 	while(fgets(line, LINE_AVG*2, fptr)) {
+		// This code removes end lines, for Unix & Windows
 		size_t ll = strlen(line);
-		if (line[ll-1] == '\n') {line[ll-1] = '\0'; } // Truncate New line.
-		if (line[ll-1] == EOF) {line[ll-1] = '\0'; } // Truncate EOF
+		if (line[ll-2] == '\r') { ll--; line[ll-1] = '\0'; } 
+		if (line[ll-1] == '\n') { ll--; line[ll] = '\0'; }
 		process_kv_pair(line, '=');
 	}
 	fclose(fptr);
@@ -231,6 +230,7 @@ void program_set_default_cfg_values(char *vm_dir) {
 	sym_put_kv("acc", "no");
 	sym_put_kv("cpu", "max");
 	sym_put_kv("rng_dev", "no");
+	sym_put_kv("net", "e1000"); // virtio-pci-net is not supported on Windows.
 #endif
 	snprintf(path_buff, PATH_MAX, "%s"DSEP"shared", vm_dir);
 	sym_put_kv("shared", filetype(path_buff,FT_PATH) ? path_buff : "");
