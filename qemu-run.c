@@ -267,7 +267,7 @@ void program_build_cmd_line(char *vm_name, char *out_cmd) {
 		out_cmd = strcpy(out_cmd, "qemu-system-x86_64");
 	} else { fatal(ERR_SYS); }
    dprint();
-	snprintf(cmd_slice, LINE_MAX, "%s-name %s -cpu %s -smp %s -m %s -boot order=%s -usb -device usb-tablet -vga %s %s%s",
+	snprintf(cmd_slice, LINE_MAX, " %s-name %s -cpu %s -smp %s -m %s -boot order=%s -usb -device usb-tablet -vga %s %s%s",
 		vm_has_acc_enabled ? "--enable-kvm " : "",
 		vm_has_name ? vm_name : "QEMU",
 		cfg[KEY_CPU].val,
@@ -282,17 +282,17 @@ void program_build_cmd_line(char *vm_name, char *out_cmd) {
    dprint();
 
 	if (vm_is_headless) {
-		snprintf(cmd_slice, LINE_MAX, "-display none -monitor telnet:127.0.0.1:%d,server,nowait -vnc %s",
+		snprintf(cmd_slice, LINE_MAX, " -display none -monitor telnet:127.0.0.1:%d,server,nowait -vnc %s",
 			telnet_port,
 			vm_has_vncpwd ? "127.0.0.1:0,password" : "127.0.0.1:0");
 		strcat(out_cmd, cmd_slice);
 	} else {
-		strcat(out_cmd, vm_has_videoacc ? "-display gtk,gl=on" : "-display gtk,gl=off");
+		strcat(out_cmd, vm_has_videoacc ? " -display gtk,gl=on" : " -display gtk,gl=off");
 	}
 
    dprint();
 	if (vm_has_network) {
-		snprintf(cmd_slice, LINE_MAX, "-nic user,model=%s%s%s",
+		snprintf(cmd_slice, LINE_MAX, " -nic user,model=%s%s%s",
 			cfg[KEY_NET].val,
 			vm_has_sharedf ? ",smb=" : "",
 			vm_has_sharedf ? cfg[KEY_SHARED].val : ""
@@ -330,21 +330,21 @@ void program_build_cmd_line(char *vm_name, char *out_cmd) {
    dprint();
 
 	if (filetype((const char*) cfg[KEY_FLOPPY].val,FT_FILE)) {
-		snprintf(cmd_slice, LINE_MAX, "-drive index=%d,file=%s,if=floppy,format=raw", drive_index, cfg[KEY_FLOPPY].val);
+		snprintf(cmd_slice, LINE_MAX, " -drive index=%d,file=%s,if=floppy,format=raw", drive_index, cfg[KEY_FLOPPY].val);
 		strcat(out_cmd, cmd_slice);
 		drive_index++;
 	}
    dprint();
 
 	if (filetype(cfg[KEY_CDROM].val,FT_FILE)) {
-		snprintf(cmd_slice, LINE_MAX, "-drive index=%d,file=%s,media=cdrom", drive_index, cfg[KEY_CDROM].val);
+		snprintf(cmd_slice, LINE_MAX, " -drive index=%d,file=%s,media=cdrom", drive_index, cfg[KEY_CDROM].val);
 		strcat(out_cmd, cmd_slice);
 		drive_index++;
 	}
    dprint();
 
 	if (filetype(cfg[KEY_DISK].val,FT_FILE)) {
-		snprintf(cmd_slice, LINE_MAX, "-drive index=%d,file=%s%s", drive_index, cfg[KEY_DISK].val, vm_has_hddvirtio ? ",if=virtio" : "");
+		snprintf(cmd_slice, LINE_MAX, " -drive index=%d,file=%s%s", drive_index, cfg[KEY_DISK].val, vm_has_hddvirtio ? ",if=virtio" : "");
 		strcat(out_cmd, cmd_slice);
 		drive_index++;
 	}
