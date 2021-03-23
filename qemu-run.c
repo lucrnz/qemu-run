@@ -87,7 +87,7 @@ void fatal(unsigned int errcode) {
 	exit(1);
 }
 
-long sym_hash_generate(char *str) {
+void sym_hash_generate(char *str, char *hash_s) {
 	int pos=0; long hash=0xCAFEBABE;
 	while(str[pos]) {
 		hash=~(((((hash&0xFF)^str[pos])<<5)|
@@ -95,15 +95,16 @@ long sym_hash_generate(char *str) {
 			(hash<<18));
 		pos++;
 	}
-	return hash;
+	snprintf(hash_s, 9, "%8X", hash);
+	if(hash_s[0]==' ') { hash_s[0]='X';}
 }
 
 bool sym_put_kv(char *key,char *val) {
-	long hash,cnt=0,ret=0;
-	hash=sym_hash_generate(key);
-	printf("sym_hash_generate wants to insert: %s\n", key);
+	int cnt=0,ret=0;
+	char hash[9]={0};
+	sym_hash_generate(key, &hash[0]);
 	while(cnt<KEY_ENDLIST) {
-		if(hash==cfg[cnt].hash) {
+		if(strcmp(cfg[cnt].hash, hash) == 0) {
 			ret=1;
 			cfg[cnt].val=strdup(val);
 		}
@@ -338,7 +339,7 @@ int main(int argc, char **argv) {
 	program_set_default_cfg_values();
 	program_load_config(vm_cfg_file);
 #ifdef DEBUG
-	puts("Hash table:"); for(int i=0;i<KEY_ENDLIST;i++) printf("%d %X='%s'\n",i,cfg[i].hash,cfg[i].val);
+	puts("Hash table:"); for(int i=0;i<KEY_ENDLIST;i++) printf("%d 0x%8.8X='%s'\n",i,cfg[i].hash,cfg[i].val);
 #endif
 	program_build_cmd_line(vm_name, cmd);
 	puts("QEMU Command line arguments:");
