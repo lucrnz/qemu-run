@@ -60,9 +60,21 @@ along with qemu-run; see the file LICENSE.  If not see <http://www.gnu.org/licen
 
 #include "config.h"
 
+#if defined(_SVID_SOURCE) || defined(_BSD_SOURCE) || _XOPEN_SOURCE >= 500 || defined(_XOPEN_SOURCE) && defined(_XOPEN_SOURCE_EXTENDED)
+#else
+char *strdup(const char *s) {
+    size_t n = strlen(s)+1;
+    char *p = malloc(n);
+    if(p) memcpy(p, s, n);
+    //printf("strdup: source=%s, len=%lu, ret=%s\n", s, (unsigned long)n, p);
+    return p;
+}
+#endif
+
 enum {ERR_UNKOWN,ERR_ARGS,ERR_ENV,ERR_OPEN_CONFIG,ERR_FIND_CONFIG,ERR_SYS,ERR_EXEC,ERR_ENDLIST};
 void fatal(unsigned int errcode) {
 	char *errs[]={
+		"Unkown error.",
 		"Invalid argument count. Did you specified the VM Name?",
 		"Cannot find VM, Check your QEMURUN_VM_PATH env. variable?",
 		"Cannot find VM config file. Did you created it?",
@@ -89,6 +101,7 @@ long sym_hash_generate(char *str) {
 bool sym_put_kv(char *key,char *val) {
 	long hash,cnt=0,ret=0;
 	hash=sym_hash_generate(key);
+	printf("sym_hash_generate wants to insert: %s\n", key);
 	while(cnt<KEY_ENDLIST) {
 		if(hash==cfg[cnt].hash) {
 			ret=1;
@@ -97,19 +110,6 @@ bool sym_put_kv(char *key,char *val) {
 		cnt++;
 	}
 	return ret;
-}
-
-char *append_to_char_arr(char *dst, const char *src, bool append_strterm, bool append_endchar, char endchar) {
-	char c; bool stop = 0;
-	dprint();
-	while (!stop) {
-		c = *src; src++;
-		if (c == '\0' && append_strterm) stop=1;
-		if (c == '\0' && !append_strterm) break;
-		*dst = c; dst++;
-	}
-	if (append_endchar) { *dst = endchar; dst++; }
-	return dst;
 }
 
 enum {FT_TYPE,FT_UNKNOWN=0,FT_PATH,FT_FILE};
@@ -123,8 +123,8 @@ int filetype(const char *fpath,int type) {
 }
 
 char* cstr_remove_quotes(char* c) {
-	size_t len = strlen(c);
 	dprint();
+	size_t len = strlen(c);
 	if (c[len-1] == '\"' && c[0] == '\"') {
 		c[len-1] = '\0';
 		return c+1;
@@ -133,12 +133,11 @@ char* cstr_remove_quotes(char* c) {
 
 #ifdef __WINDOWS__ // For now I only need this function on Windows.
 bool get_binary_full_path(const char *bin_fname, char *out_bin_fpath, char *out_dir) {
+	dprint();
 	bool found = 0;
 	char fpath_b[PATH_MAX], env_b[PATH_MAX*16], *env;
 	strcpy(env_b, (const char *)((env=getenv("PATH"))?env:""));
 	char *dir_p = strtok(env_b, PSEP);
-
-	dprint();
 	while (dir_p && !found) {
 		char* dir_pq = cstr_remove_quotes(dir_p);
 		snprintf(fpath_b, sizeof(fpath_b), "%s"DSEP"%s", dir_pq, bin_fname); found = filetype(fpath_b, FT_FILE);
@@ -154,20 +153,19 @@ bool get_binary_full_path(const char *bin_fname, char *out_bin_fpath, char *out_
 #endif
 
 void program_load_config(const char *fpath) {
-	FILE *fptr = fopen(fpath, "r");
 	dprint();
+	FILE *fptr = fopen(fpath, "r");
 #ifdef DEBUG
 	printf("fpath=%s\n",fpath);
 #endif
 	if (!fptr) { fatal(ERR_OPEN_CONFIG); }
-	char line[LINE_AVG*2];
+	char line[LINE_AVG*2] = {0}, key[LINE_AVG]={0}, val[LINE_AVG]={0};
 	while(fgets(line, LINE_AVG*2, fptr)) {
-		if(!strchr(line, '=') || line[0] == '#') { continue; } // Comment lines & invalid lines.
-		// This code removes end lines, for Unix & Windows
-		size_t ll = strlen(line);
-		if (line[ll-2] == '\r') { ll--; line[ll-1] = '\0'; } 
-		if (line[ll-1] == '\n') { ll--; line[ll] = '\0'; }
-		char key[LINE_AVG]={0}, val[LINE_AVG]={0};
+		if(!strchr(line, '=') || line[0] == '#') { continue; }
+		size_t len = strlen(line);
+		if (len && line[len-2] == '\r') { len--; line[len-1] = '\0'; } 
+		if (len && line[len-1] == '\n') { len--; line[len] = '\0'; }
+		if (len<3) { continue; }
 		char* slice = strtok(line, "=");
 		for(int i = 0; slice && i<2; i++) {
 			if (i==0) { strcpy(key, slice); }
@@ -185,7 +183,6 @@ void program_set_default_cfg_values() {
 	sym_put_kv("acc", "no");
 	sym_put_kv("cpu", "max");
 	sym_put_kv("rng_dev", "no");
-	sym_put_kv("net", "e1000"); // virtio-pci-net is not supported on Windows.
 #endif
 	/* Because now qemu-run chdirs into vm_dir,
 	it's not needed to append vm_dir to the filename. */
@@ -311,39 +308,33 @@ void program_build_cmd_line(char *vm_name, char *out_cmd) {
 	if (vm_clock_is_localtime) out_cmd = strcat(out_cmd, " -rtc base=localtime");
 }
 
-void program_find_vm_location(int argc, char **argv, char *out_vm_name, char *out_vm_dir, char *out_vm_cfg_file) {
-	char *vm_name, vm_dir[PATH_MAX+1], vm_dir_env_str[PATH_MAX*16],*env;
+void program_find_vm_and_chdir(int argc, char **argv, char *out_vm_name, char *out_vm_cfg_file) {
+	char vm_dir[PATH_MAX+1], *env, *env_dir;
 	bool vm_dir_exists = 0, cfg_file_exists = 0;
 	dprint();
-	if (argc < 1) { fatal(ERR_ARGS); }
-	vm_name = argv[1];
-	strcpy(vm_dir_env_str, (const char *)((env=getenv("QEMURUN_VM_PATH"))?env:""));
-	char *vm_dir_env = strtok(vm_dir_env_str, PSEP);
-	while ( vm_dir_env && vm_dir_exists == 0 ) {
-		snprintf(vm_dir, PATH_MAX, "%s"DSEP"%s", cstr_remove_quotes(vm_dir_env), vm_name);
+	if (argc < 2) { fatal(ERR_ARGS); }
+	strcpy(out_vm_name, argv[1]);
+	env = getenv("QEMURUN_VM_PATH");
+	if (!env) { fatal(ERR_ENV); }
+	env_dir = strtok(env, PSEP);
+	while ( env_dir && !vm_dir_exists ) {
+		char* env_dir_q = cstr_remove_quotes(env_dir);
+		snprintf(vm_dir, PATH_MAX, "%s"DSEP"%s", env_dir_q, out_vm_name);
 		vm_dir_exists = filetype(vm_dir,FT_PATH);
-		vm_dir_env = strtok(NULL, PSEP);
+		env_dir = strtok(NULL, PSEP);
 	}
 	if (! vm_dir_exists) { fatal(ERR_ENV); }
-	char cfg_file[PATH_MAX+12];
-	snprintf(cfg_file, sizeof(cfg_file), "%s"DSEP"config", vm_dir);
-	cfg_file_exists = filetype(cfg_file, FT_FILE);
-	if (! cfg_file_exists) {
-		snprintf(cfg_file, sizeof(cfg_file), "%s"DSEP"config.ini", vm_dir);
-		cfg_file_exists = filetype(cfg_file, FT_FILE);
-	}
+	chdir(vm_dir);
+	strcpy(out_vm_cfg_file, "config"); cfg_file_exists = filetype(out_vm_cfg_file, FT_FILE);
+	if (! cfg_file_exists) { strcpy(out_vm_cfg_file, "config.ini"); cfg_file_exists = filetype(out_vm_cfg_file, FT_FILE); }
 	if (! cfg_file_exists) { fatal(ERR_FIND_CONFIG); }
-	strcpy(out_vm_name, vm_name);
-	strcpy(out_vm_dir, vm_dir);
-	strcpy(out_vm_cfg_file, cfg_file);
 }
 
 int main(int argc, char **argv) {
-	char cmd[LINE_MAX], vm_name[LINE_AVG], vm_dir[PATH_MAX+1], vm_cfg_file[LINE_AVG];
+	char cmd[LINE_MAX], vm_name[LINE_AVG], vm_cfg_file[LINE_AVG];
 	dprint();
 	puts_gpl_banner();
-	program_find_vm_location(argc, argv, vm_name, vm_dir, vm_cfg_file);
-	chdir(vm_dir);
+	program_find_vm_and_chdir(argc, argv, vm_name, vm_cfg_file);
 	program_set_default_cfg_values();
 	program_load_config(vm_cfg_file);
 #ifdef DEBUG
