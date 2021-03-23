@@ -1,4 +1,21 @@
-enum { KEY_VM_NAME,KEY_SYS,KEY_EFI,KEY_CPU,KEY_CORES,KEY_MEM,KEY_ACC,KEY_VGA,KEY_SND,KEY_BOOT,KEY_FWD_PORTS,KEY_HDD_VIRTIO,KEY_NET,KEY_RNG_DEV,KEY_HOST_VIDEO_ACC,KEY_LOCALTIME,KEY_HEADLESS,KEY_VNC_PWD,KEY_MONITOR_PORT,KEY_SHARED,KEY_FLOPPY,KEY_CDROM,KEY_DISK,KEY_ENDLIST };
+/*Copyright (C) 2021 Lucie Cupcakes <lucie_linux [at] protonmail.com>
+This file is part of qemu-run <https://github.com/lucie-cupcakes/qemu-run>.
+qemu-run is free software; you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free
+Software Foundation; either version 3, or (at your option) any later version.
+qemu-run is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with qemu-run; see the file LICENSE.  If not see <http://www.gnu.org/licenses/>.*/
+
+#ifndef QEMU_RUN_CONFIG_H
+#define QEMU_RUN_CONFIG_H
+
+enum {  KEY_VM_NAME,KEY_SYS,KEY_EFI,KEY_CPU,KEY_CORES,KEY_MEM,KEY_ACC,KEY_VGA,KEY_SND,
+        KEY_BOOT,KEY_FWD_PORTS,KEY_HDD_VIRTIO,KEY_NET,KEY_RNG_DEV,KEY_HOST_VIDEO_ACC,
+        KEY_LOCALTIME,KEY_HEADLESS,KEY_VNC_PWD,KEY_MONITOR_PORT,KEY_SHARED,KEY_FLOPPY,
+        KEY_CDROM,KEY_DISK,KEY_ENDLIST };
 
 typedef struct {
 	int hash;
@@ -30,3 +47,5 @@ st_config cfg[24] = {
 	{0x549BE96E, ""},		/* cdrom */
 	{0x0467EE44, ""}		/* disk */
 };
+
+#endif //QEMU_RUN_CONFIG_H
