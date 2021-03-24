@@ -326,7 +326,7 @@ void program_find_vm_and_chdir(int argc, char **argv, char *out_vm_name, char *o
 		env_dir = strtok(NULL, PSEP);
 	}
 	if (! vm_dir_exists) { fatal(ERR_ENV); }
-	if (! chdir(vm_dir)) { fatal(ERR_CHDIR_VM_DIR); }
+	if (chdir(vm_dir)) { fatal(ERR_CHDIR_VM_DIR); }
 	strcpy(out_vm_cfg_file, "config"); cfg_file_exists = filetype(out_vm_cfg_file, FT_FILE);
 	if (! cfg_file_exists) { strcpy(out_vm_cfg_file, "config.ini"); cfg_file_exists = filetype(out_vm_cfg_file, FT_FILE); }
 	if (! cfg_file_exists) { fatal(ERR_FIND_CONFIG); }
