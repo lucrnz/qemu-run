@@ -50,7 +50,7 @@ char *strupr_a(const char *s) {
 char *hash_to_str_a(long hash) {
 	char *p = malloc(9);
 	if(!p) return "";
-	snprintf(p, 9, "%8X", hash);
+	snprintf(p, 9, "%8lX", hash);
 	if(p[0]==' ') { p[0]='X';}
 	dynm_i++;
 	dynm[dynm_i]=p;

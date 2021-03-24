@@ -19,18 +19,20 @@ along with qemu-run; see the file LICENSE.  If not see <http://www.gnu.org/licen
 #define __NIX__
 #define PSEP ":"
 #define DSEP "/"
-#ifdef __linux__
 #include <unistd.h>
+#ifdef __linux__
 #include <linux/limits.h>
 #else
 #include <limits.h>
 #endif // __linux__
-#else
+#else // !__NIX__
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
 #define __WINDOWS__
 #define PSEP ";"
 #define DSEP "\\"
 #include <io.h>
 #include <limits.h>
+#endif // __WINDOWS__
 #endif // __NIX__
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -41,24 +43,17 @@ along with qemu-run; see the file LICENSE.  If not see <http://www.gnu.org/licen
 #else
 #define dprint() printf("%s (%d) %s\n",__FILE__,__LINE__);
 #endif
-#else
+#else // !DEBUG
 #define dprint()
 #endif // DEBUG
 
-#ifndef LINE_MAX
-#define LINE_AVG (128)
-#define LINE_MAX (LINE_AVG*32)
-#endif
+#define BUFF_AVG 128
+#define BUFF_MAX BUFF_AVG*32
 
 #ifndef stricmp //GCC is weird sometimes it doesn't includes this..
 #include <strings.h>
 #define stricmp(x, y) strcasecmp(x, y)
 #endif
-
-#define puts_gpl_banner()                                              \
-	puts("qemu-run. Forever beta software. Use on production on your own risk!\nThis software is Free software - released under the GPLv3 License.\nRead the LICENSE file. Or go visit https://www.gnu.org/licenses/gpl-3.0.html\n")
-
-#include "config.h"
 
 #if defined(_SVID_SOURCE) || defined(_BSD_SOURCE) || _XOPEN_SOURCE >= 500 || defined(_XOPEN_SOURCE) && defined(_XOPEN_SOURCE_EXTENDED)
 #else
@@ -71,12 +66,18 @@ char *strdup(const char *s) {
 }
 #endif
 
-enum {ERR_UNKOWN,ERR_ARGS,ERR_ENV,ERR_OPEN_CONFIG,ERR_FIND_CONFIG,ERR_SYS,ERR_EXEC,ERR_ENDLIST};
+#define puts_gpl_banner()                                              \
+	puts("qemu-run. Forever beta software. Use on production on your own risk!\nThis software is Free software - released under the GPLv3 License.\nRead the LICENSE file. Or go visit https://www.gnu.org/licenses/gpl-3.0.html\n")
+
+#include "config.h"
+
+enum {ERR_UNKOWN,ERR_ARGS,ERR_ENV,ERR_CHDIR_VM_DIR,ERR_OPEN_CONFIG,ERR_FIND_CONFIG,ERR_SYS,ERR_EXEC,ERR_ENDLIST};
 void fatal(unsigned int errcode) {
 	char *errs[]={
-		"Unkown error.",
+		"Unkown error.", // ERR_UNKOWN
 		"Invalid argument count. Did you specified the VM Name?",
 		"Cannot find VM, Check your QEMURUN_VM_PATH env. variable?",
+		"Cannot access VM folder. Check permissions?",
 		"Cannot find VM config file. Did you created it?",
 		"Cannot open config file. Check file permissions?",
 		"Config file has an invalid value for sys.",
@@ -95,7 +96,7 @@ void sym_hash_generate(char *str, char *hash_s) {
 			(hash<<18));
 		pos++;
 	}
-	snprintf(hash_s, 9, "%8X", hash);
+	snprintf(hash_s, 9, "%8lX", hash);
 	if(hash_s[0]==' ') { hash_s[0]='X';}
 }
 
@@ -160,8 +161,8 @@ void program_load_config(const char *fpath) {
 	printf("fpath=%s\n",fpath);
 #endif
 	if (!fptr) { fatal(ERR_OPEN_CONFIG); }
-	char line[LINE_AVG*2] = {0}, key[LINE_AVG]={0}, val[LINE_AVG]={0};
-	while(fgets(line, LINE_AVG*2, fptr)) {
+	char line[BUFF_AVG*2] = {0}, key[BUFF_AVG]={0}, val[BUFF_AVG]={0};
+	while(fgets(line, BUFF_AVG*2, fptr)) {
 		if(!strchr(line, '=') || line[0] == '#') { continue; }
 		size_t len = strlen(line);
 		if (len && line[len-2] == '\r') { len--; line[len-1] = '\0'; } 
@@ -200,7 +201,7 @@ void program_set_default_cfg_values() {
 
 void program_build_cmd_line(char *vm_name, char *out_cmd) {
 	int drive_index = 0, telnet_port = 55555; // @TODO: Get usable TCP port
-	char cmd_slice[LINE_MAX] = {0};
+	char cmd_slice[BUFF_MAX] = {0};
 	dprint();
 #ifdef __WINDOWS__
 	char* cmd_sp = out_cmd; // Need this variable, for a Windows fix..
@@ -224,7 +225,7 @@ void program_build_cmd_line(char *vm_name, char *out_cmd) {
 	} else if (strcmp(cfg[KEY_SYS].val, "x64") == 0) {
 		out_cmd = strcpy(out_cmd, "qemu-system-x86_64");
 	} else { fatal(ERR_SYS); }
-	snprintf(cmd_slice, LINE_MAX, " %s-name %s -cpu %s -smp %s -m %s -boot order=%s -usb -device usb-tablet -vga %s %s%s",
+	snprintf(cmd_slice, BUFF_MAX, " %s-name %s -cpu %s -smp %s -m %s -boot order=%s -usb -device usb-tablet -vga %s %s%s",
 		vm_has_acc_enabled ? "--enable-kvm " : "",
 		vm_has_name ? vm_name : "QEMU",
 		cfg[KEY_CPU].val,
@@ -238,7 +239,7 @@ void program_build_cmd_line(char *vm_name, char *out_cmd) {
 	strcat(out_cmd, cmd_slice);
 
 	if (vm_is_headless) {
-		snprintf(cmd_slice, LINE_MAX, " -display none -monitor telnet:127.0.0.1:%d,server,nowait -vnc %s",
+		snprintf(cmd_slice, BUFF_MAX, " -display none -monitor telnet:127.0.0.1:%d,server,nowait -vnc %s",
 			telnet_port,
 			vm_has_vncpwd ? "127.0.0.1:0,password" : "127.0.0.1:0");
 		strcat(out_cmd, cmd_slice);
@@ -247,7 +248,7 @@ void program_build_cmd_line(char *vm_name, char *out_cmd) {
 	}
 
 	if (vm_has_network) {
-		snprintf(cmd_slice, LINE_MAX, " -nic user,model=%s%s%s",
+		snprintf(cmd_slice, BUFF_MAX, " -nic user,model=%s%s%s",
 			cfg[KEY_NET].val,
 			vm_has_sharedf ? ",smb=" : "",
 			vm_has_sharedf ? cfg[KEY_SHARED].val : ""
@@ -265,28 +266,28 @@ void program_build_cmd_line(char *vm_name, char *out_cmd) {
 					strcpy(i == 0 ? fwd_port_a : fwd_port_b, fwd_ports_tk);
 					fwd_ports_tk = strtok(NULL, ":");
 				}
-				snprintf(cmd_slice, LINE_MAX, ",hostfwd=tcp::%s-:%s,hostfwd=udp::%s-:%s", fwd_port_a, fwd_port_b, fwd_port_a, fwd_port_b);
+				snprintf(cmd_slice, BUFF_MAX, ",hostfwd=tcp::%s-:%s,hostfwd=udp::%s-:%s", fwd_port_a, fwd_port_b, fwd_port_a, fwd_port_b);
 			} else { // Else use the same port for Host and Guest.
-				snprintf(cmd_slice, LINE_MAX, ",hostfwd=tcp::%s-:%s,hostfwd=udp::%s-:%s", cfg_v_c, cfg_v_c, cfg_v_c, cfg_v_c);
+				snprintf(cmd_slice, BUFF_MAX, ",hostfwd=tcp::%s-:%s,hostfwd=udp::%s-:%s", cfg_v_c, cfg_v_c, cfg_v_c, cfg_v_c);
 			}
 			strcat(out_cmd, cmd_slice);
 		}
 	}
 
 	if (filetype((const char*) cfg[KEY_FLOPPY].val,FT_FILE)) {
-		snprintf(cmd_slice, LINE_MAX, " -drive index=%d,file=%s,if=floppy,format=raw", drive_index, cfg[KEY_FLOPPY].val);
+		snprintf(cmd_slice, BUFF_MAX, " -drive index=%d,file=%s,if=floppy,format=raw", drive_index, cfg[KEY_FLOPPY].val);
 		strcat(out_cmd, cmd_slice);
 		drive_index++;
 	}
 
 	if (filetype(cfg[KEY_CDROM].val,FT_FILE)) {
-		snprintf(cmd_slice, LINE_MAX, " -drive index=%d,file=%s,media=cdrom", drive_index, cfg[KEY_CDROM].val);
+		snprintf(cmd_slice, BUFF_MAX, " -drive index=%d,file=%s,media=cdrom", drive_index, cfg[KEY_CDROM].val);
 		strcat(out_cmd, cmd_slice);
 		drive_index++;
 	}
 
 	if (filetype(cfg[KEY_DISK].val,FT_FILE)) {
-		snprintf(cmd_slice, LINE_MAX, " -drive index=%d,file=%s%s", drive_index, cfg[KEY_DISK].val, vm_has_hddvirtio ? ",if=virtio" : "");
+		snprintf(cmd_slice, BUFF_MAX, " -drive index=%d,file=%s%s", drive_index, cfg[KEY_DISK].val, vm_has_hddvirtio ? ",if=virtio" : "");
 		strcat(out_cmd, cmd_slice);
 		drive_index++;
 	}
@@ -295,7 +296,7 @@ void program_build_cmd_line(char *vm_name, char *out_cmd) {
 	/* QEMU on Windows needs, for some reason, to have an additional argument with the program path on it,
 	* For example if you have it on: "C:\Program Files\Qemu", You have to run it like this: qemu-system-i386.exe -L "C:\Program Files\Qemu"
 	* Otherwise it wont find the BIOS file.. */
-	char q_fp[LINE_AVG], q_fn[LINE_AVG], wfix_arg[LINE_AVG+6]={0};
+	char q_fp[BUFF_AVG], q_fn[BUFF_AVG], wfix_arg[BUFF_AVG+6]={0};
 	size_t q_fn_l = 0;
 	dprint();
 	for (; cmd_sp[q_fn_l] && cmd_sp[q_fn_l] != ' '; q_fn_l++) { q_fn[q_fn_l] = cmd_sp[q_fn_l]; } // Copy the qemu exe file name
@@ -325,14 +326,14 @@ void program_find_vm_and_chdir(int argc, char **argv, char *out_vm_name, char *o
 		env_dir = strtok(NULL, PSEP);
 	}
 	if (! vm_dir_exists) { fatal(ERR_ENV); }
-	chdir(vm_dir);
+	if (! chdir(vm_dir)) { fatal(ERR_CHDIR_VM_DIR); }
 	strcpy(out_vm_cfg_file, "config"); cfg_file_exists = filetype(out_vm_cfg_file, FT_FILE);
 	if (! cfg_file_exists) { strcpy(out_vm_cfg_file, "config.ini"); cfg_file_exists = filetype(out_vm_cfg_file, FT_FILE); }
 	if (! cfg_file_exists) { fatal(ERR_FIND_CONFIG); }
 }
 
 int main(int argc, char **argv) {
-	char cmd[LINE_MAX], vm_name[LINE_AVG], vm_cfg_file[LINE_AVG];
+	char cmd[BUFF_MAX], vm_name[BUFF_AVG], vm_cfg_file[BUFF_AVG];
 	dprint();
 	puts_gpl_banner();
 	program_find_vm_and_chdir(argc, argv, vm_name, vm_cfg_file);
