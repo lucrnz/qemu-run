@@ -74,11 +74,11 @@ void fatal(unsigned int errcode) {
 	char *errs[]={
 		"Unkown error.",// ERR_UNKOWN
 		"Invalid argument count. Did you specified the VM Name?",
-		"Cannot find VM. Please check your QEMURUN_VM_PATH env. variable.",
-		"Cannot access VM folder. Maybe check its permissions.",
+		"Cannot find VM. Please check your QEMURUN_VM_PATH env. variable",
+		"Cannot access VM folder. Maybe check its permissions",
 		"Cannot find VM config file. Is it created?",
-		"Cannot open config file. Maybe check file permissions.",
-		"Config file has an invalid value for sys.",
+		"Cannot open config file. Maybe check file permissions",
+		"Config file has an invalid value for sys",
 		"There was an error trying to execute qemu. Is it installed?"
 	};
 	dprint();
