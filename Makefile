@@ -1,8 +1,8 @@
-PWD=$(shell pwd)
 CC=gcc
-CSTD=-std=c99
+CSTD=-std=c99 -Wall -Wextra
 CFLAGS_REL=-Os -s -mtune=generic
 CFLAGS_DBG=-g -O0 -D DEBUG -mtune=generic -fsanitize=address,leak
+PWD=$(shell pwd)
 DOCKER_CONT_NAME=buildenv-qemu-run
 
 all: release
@@ -15,7 +15,7 @@ clean_rm_all_binaries:
 	rm -rv *.bin || test 1
 
 genhashes:
-	${CC} ${CFLAGS_DBG} -w genhashes.c -o genhashes.bin
+	${CC} ${CFLAGS_REL} -w genhashes.c -o genhashes.bin
 	chmod -v +x genhashes.bin
 	./genhashes.bin
 
