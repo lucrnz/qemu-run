@@ -87,24 +87,22 @@ void fatal(unsigned int errcode) {
 	exit(1);
 }
 
-void sym_hash_generate(char *str, char *hash_s) {
-	int pos=0; long hash=0xCAFEBABE;
+int sym_hash_generate(char *str) {
+	int pos=0, hash=0xCAFEBABE;
 	while(str[pos]) {
 		hash=~(((((hash&0xFF)^str[pos])<<5)|
 			(((hash>>26)&0x1f)^(pos&31)))|
 			(hash<<18));
 		pos++;
 	}
-	snprintf(hash_s, 9, "%8X", hash);
-	if(hash_s[0]==' ') { hash_s[0]='X';}
+	hash&=0xFFFFFFFF;
+	return hash;
 }
 
 bool sym_put_kv(char *key,char *val) {
-	int cnt=0,ret=0;
-	char hash[9]={0};
-	sym_hash_generate(key, &hash[0]);
+	int cnt=0,ret=0, hash = sym_hash_generate(key);
 	while(cnt<KEY_ENDLIST) {
-		if(strcmp(cfg[cnt].hash, hash) == 0) {
+		if(cfg[cnt].hash == hash) {
 			ret=1;
 			cfg[cnt].val=strdup(val);
 		}
