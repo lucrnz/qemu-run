@@ -2,8 +2,8 @@
 This file is part of qemu-run <https://github.com/lucie-cupcakes/qemu-run>.
 qemu-run is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free
-Software Foundation; either version 3,or (at your option) any later version.
-qemu-run is distributed in the hope that it will be useful,but WITHOUT ANY
+Software Foundation; either version 3, or (at your option) any later version.
+qemu-run is distributed in the hope that it will be useful, but WITHOUT ANY
 WARRANTY; without even the implied warranty of MERCHANTABILITY or
 FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
@@ -55,7 +55,7 @@ along with qemu-run; see the file LICENSE.  If not see <http://www.gnu.org/licen
 #define stricmp(x,y) strcasecmp(x,y)
 #endif
 
-#if defined(_SVID_SOURCE) || defined(_BSD_SOURCE) || _XOPEN_SOURCE >= 500 || defined(_XOPEN_SOURCE)&&defined(_XOPEN_SOURCE_EXTENDED)
+#if defined(_SVID_SOURCE)||defined(_BSD_SOURCE)||_XOPEN_SOURCE >= 500||defined(_XOPEN_SOURCE)&&defined(_XOPEN_SOURCE_EXTENDED)
 #else
 char *strdup(const char *s) {
     size_t n=strlen(s)+1;
