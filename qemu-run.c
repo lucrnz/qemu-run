@@ -299,7 +299,7 @@ void program_build_cmd_line(char *vm_name,char *out_cmd) {
 #else
 	if(vm_has_rngdev) strcat(out_cmd," -object rng-random,id=rng0,filename=/dev/random -device virtio-rng-pci,rng=rng0");
 #endif
-	if(vm_clock_is_localtime) out_cmd=strcat(out_cmd," -rtc base=localtime");
+	if(vm_clock_is_localtime) strcat(out_cmd," -rtc base=localtime");
 }
 
 void program_find_vm_and_chdir(int argc,char **argv,char *out_vm_name,char *out_vm_cfg_file) {
