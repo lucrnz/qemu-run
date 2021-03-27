@@ -231,14 +231,18 @@ void program_set_default_cfg_values() {
 	/* Because now qemu-run chdirs into vm_dir,
 	it's not needed to append vm_dir to the filename. */
 	if(filetype("shared",FT_PATH))			{ sym_put_kv("shared","shared"); }
-	if(filetype("floppy",FT_FILE)) 		{ sym_put_kv("floppy","floppy"); }
-	if(filetype("floppy.img",FT_FILE)) 	{ sym_put_kv("floppy","floppy.img"); }
+	if(filetype("floppy",FT_FILE))			{ sym_put_kv("floppy","floppy"); }
+	if(filetype("floppy.img",FT_FILE))		{ sym_put_kv("floppy","floppy.img"); }
 	if(filetype("cdrom",FT_FILE))			{ sym_put_kv("cdrom","cdrom"); }
 	if(filetype("cdrom.iso",FT_FILE))		{ sym_put_kv("cdrom","cdrom.iso"); }
 	if(filetype("disk",FT_FILE))			{ sym_put_kv("disk","disk"); }
-	if(filetype("disk.qcow2",FT_FILE))	{ sym_put_kv("disk","disk.qcow2"); }
+	if(filetype("disk.qcow2",FT_FILE))		{ sym_put_kv("disk","disk.qcow2"); }
 	if(filetype("disk.raw",FT_FILE))		{ sym_put_kv("disk","disk.raw"); }
 	if(filetype("disk.img",FT_FILE))		{ sym_put_kv("disk","disk.img"); }
+	if(filetype("disk.vmdk",FT_FILE))		{ sym_put_kv("disk","disk.vmdk"); }
+	if(filetype("disk.vdi",FT_FILE))		{ sym_put_kv("disk","disk.vdi"); }
+	if(filetype("disk.vpc",FT_FILE))		{ sym_put_kv("disk","disk.vpc"); }
+	if(filetype("disk.vhdx",FT_FILE))		{ sym_put_kv("disk","disk.vhdx"); }
 }
 
 void program_build_cmd_line(char *vm_name, char *out_cmd) {
