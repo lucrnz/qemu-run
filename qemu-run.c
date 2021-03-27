@@ -11,6 +11,7 @@ along with qemu-run; see the file LICENSE.  If not see <http://www.gnu.org/licen
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <string.h>
 #include <ctype.h>
@@ -58,9 +59,9 @@ along with qemu-run; see the file LICENSE.  If not see <http://www.gnu.org/licen
 #if defined(_SVID_SOURCE)||defined(_BSD_SOURCE)||_XOPEN_SOURCE >= 500||defined(_XOPEN_SOURCE)&&defined(_XOPEN_SOURCE_EXTENDED)
 #else
 char *strdup(const char *s) {
-    size_t n=strlen(s)+1;
-    char *p=malloc(n);
-    return p ? memcpy(p,s,n) : p;
+	size_t n=strlen(s)+1;
+	char *p=malloc(n);
+	return p ? memcpy(p,s,n) : p;
 }
 #endif
 
@@ -68,6 +69,55 @@ char *strdup(const char *s) {
 	puts("qemu-run. Forever beta software. Use on production on your own risk!\nThis software is Free software - released under the GPLv3 License.\nRead the LICENSE file. Or go visit https://www.gnu.org/licenses/gpl-3.0.html\n")
 
 #include "config.h"
+
+#define mzero_ca(a) memset(a, 0, sizeof(a));
+
+char *strcatx(char *str, ...) {
+	va_list ap;
+	int dl,sl;
+	char *arg;
+	for(dl=0;str[dl];dl++);
+	va_start(ap,str);
+	while ((arg = va_arg(ap,char*))) {
+		for(sl=0;arg[sl];sl++) { str[dl++]=arg[sl]; }
+	}
+	va_end(ap);
+	str[dl]=0;
+	return str;
+}
+
+char *bcitoa(char *sequence,int base,int num,char *out_buff) {
+	char *dflt="0123456789ABCDEF";
+	char *str,*vals;
+	int max=1,len=1,idx=0;
+	vals=(sequence==NULL)?dflt:sequence;
+	while((max*base)<num) {max*=base;len++;}
+	if(out_buff) {
+	   str=out_buff;
+	} else {
+		str=(char *)calloc(1,len+1);
+	}
+	while(len--) {
+		str[idx++]=vals[(num/max)];
+		num-=(num/max)*max;
+		max/=base;
+   }
+   return str;
+}
+
+int bcatoi(char *sequence,int base,char *str) {
+   char *dflt="0123456789ABCDEF";
+   char *val;
+   int num=0,idx;
+   val=(sequence==NULL)?dflt:sequence;
+   while(*str) {
+      for(idx=0;idx<base && *str!=val[idx];idx++);
+      if(idx==base) {num=0;break;}
+      num=(num*base)+idx;
+      str++;
+   }
+   return num;
+}
 
 enum {ERR_UNKOWN,ERR_ARGS,ERR_ENV,ERR_CHDIR_VM_DIR,ERR_OPEN_CONFIG,ERR_FIND_CONFIG,ERR_SYS,ERR_EXEC,ERR_ENDLIST};
 void fatal(unsigned int errcode) {
@@ -128,18 +178,18 @@ char* cstr_remove_quotes(char* c) {
 #ifdef __WINDOWS__ // For now I only need this function on Windows.
 bool get_binary_full_path(const char *bin_fname,char *out_bin_fpath,char *out_dir) {
 	dprint();
-	bool found=0;
-	char fpath_b[PATH_MAX],env_b[PATH_MAX*16],*env;
-	strcpy(env_b,(const char *)((env=getenv("PATH"))?env:""));
-	char *dir_p=strtok(env_b,PSEP);
-	while (dir_p&&!found) {
-		char* dir_pq=cstr_remove_quotes(dir_p);
-		snprintf(fpath_b,sizeof(fpath_b),"%s"DSEP"%s",dir_pq,bin_fname); found=filetype(fpath_b,FT_FILE);
-		if(!found) { snprintf(fpath_b,sizeof(fpath_b),"%s"DSEP"%s.exe",dir_pq,bin_fname); found=filetype(fpath_b,FT_FILE); }
-		if(!found) { snprintf(fpath_b,sizeof(fpath_b),"%s"DSEP"%s.com",dir_pq,bin_fname); found=filetype(fpath_b,FT_FILE); }
-		if(!found) { snprintf(fpath_b,sizeof(fpath_b),"%s"DSEP"%s.bat",dir_pq,bin_fname); found=filetype(fpath_b,FT_FILE); }
-		if(found&&out_dir) { strcpy(out_dir,dir_pq); }
-		dir_p=strtok(NULL,PSEP);
+	bool found = 0;
+	char fp_b[PATH_MAX]={0};
+	char *env = getenv("PATH");
+	char *dir_p = strtok(env, PSEP);
+	while (dir_p && !found) {
+		char* dir_pq = cstr_remove_quotes(dir_p);
+		strcatx(fp_b, dir_pq, DSEP, bin_fname, 0); found = filetype(fpath_b, FT_FILE);
+		if (!found) { mzero_ca(fp_b); strcatx(fp_b, dir_pq, DSEP, bin_fname, ".exe", 0); found = filetype(fpath_b, FT_FILE); }
+		if (!found) { mzero_ca(fp_b); strcatx(fp_b, dir_pq, DSEP, bin_fname, ".bat", 0); found = filetype(fpath_b, FT_FILE); }
+		if (!found) { mzero_ca(fp_b); strcatx(fp_b, dir_pq, DSEP, bin_fname, ".com", 0); found = filetype(fpath_b, FT_FILE); }
+		if (found && out_dir) { strcpy(out_dir, dir_pq); }
+		dir_p = strtok(NULL, PSEP);
 	}
 	if(found&&out_bin_fpath) { strcpy(out_bin_fpath,fpath_b); }
 	return found;
@@ -181,106 +231,107 @@ void program_set_default_cfg_values() {
 	/* Because now qemu-run chdirs into vm_dir,
 	it's not needed to append vm_dir to the filename. */
 	if(filetype("shared",FT_PATH))			{ sym_put_kv("shared","shared"); }
-	if(filetype("floppy",FT_FILE)) 		{ sym_put_kv("floppy","floppy"); }
-	if(filetype("floppy.img",FT_FILE)) 	{ sym_put_kv("floppy","floppy.img"); }
+	if(filetype("floppy",FT_FILE))			{ sym_put_kv("floppy","floppy"); }
+	if(filetype("floppy.img",FT_FILE))		{ sym_put_kv("floppy","floppy.img"); }
 	if(filetype("cdrom",FT_FILE))			{ sym_put_kv("cdrom","cdrom"); }
 	if(filetype("cdrom.iso",FT_FILE))		{ sym_put_kv("cdrom","cdrom.iso"); }
 	if(filetype("disk",FT_FILE))			{ sym_put_kv("disk","disk"); }
-	if(filetype("disk.qcow2",FT_FILE))	{ sym_put_kv("disk","disk.qcow2"); }
+	if(filetype("disk.qcow2",FT_FILE))		{ sym_put_kv("disk","disk.qcow2"); }
 	if(filetype("disk.raw",FT_FILE))		{ sym_put_kv("disk","disk.raw"); }
 	if(filetype("disk.img",FT_FILE))		{ sym_put_kv("disk","disk.img"); }
+	if(filetype("disk.vmdk",FT_FILE))		{ sym_put_kv("disk","disk.vmdk"); }
+	if(filetype("disk.vdi",FT_FILE))		{ sym_put_kv("disk","disk.vdi"); }
+	if(filetype("disk.vpc",FT_FILE))		{ sym_put_kv("disk","disk.vpc"); }
+	if(filetype("disk.vhdx",FT_FILE))		{ sym_put_kv("disk","disk.vhdx"); }
 }
 
-void program_build_cmd_line(char *vm_name,char *out_cmd) {
-	int drive_index=0,telnet_port=55555; // @TODO: Get usable TCP port
-	char cmd_slice[BUFF_MAX]={0};
+void program_build_cmd_line(char *vm_name, char *out_cmd) {
+	int drive_index = 0; // telnet_port = 55555; // @TODO: Get usable TCP port
+	char drive_str[4]={0};
 	dprint();
 #ifdef __WINDOWS__
-	char* cmd_sp=out_cmd; // Need this variable,for a Windows fix..
+	char* cmd_sp = out_cmd; // Need this variable, for a Windows fix..
+	char qemu_binary_file[64] = {0};
 #else
 	bool vm_has_rngdev=stricmp(cfg[KEY_RNG_DEV].val,"yes")==0;
 #endif
-	bool vm_has_name=(strcmp(vm_name,"") != 0 );
-	bool vm_has_acc_enabled=stricmp(cfg[KEY_ACC].val,"yes")==0;
-	bool vm_has_vncpwd=(strcmp(cfg[KEY_VNC_PWD].val,"") != 0);
-	bool vm_has_audio=stricmp(cfg[KEY_SND].val,"no")!=0;
-	bool vm_has_videoacc=stricmp(cfg[KEY_HOST_VIDEO_ACC].val,"yes")==0;
-	bool vm_is_headless=stricmp(cfg[KEY_HEADLESS].val,"yes")==0;
-	bool vm_clock_is_localtime=stricmp(cfg[KEY_LOCALTIME].val,"yes")==0;
-	bool vm_has_sharedf=(strcmp(cfg[KEY_SHARED].val,"") != 0);
-	bool vm_has_hddvirtio=stricmp(cfg[KEY_HDD_VIRTIO].val,"yes")==0;
-	bool vm_has_network=(strcmp(cfg[KEY_NET].val,"") != 0 );
-	vm_has_sharedf=vm_has_sharedf ? filetype(cfg[KEY_SHARED].val,FT_PATH) : 0;
-	*out_cmd=0;
-	if(strcmp(cfg[KEY_SYS].val,"x32")==0) {
-		out_cmd=strcpy(out_cmd,"qemu-system-i386");
-	} else if(strcmp(cfg[KEY_SYS].val,"x64")==0) {
-		out_cmd=strcpy(out_cmd,"qemu-system-x86_64");
-	}else{ fatal(ERR_SYS); }
-	snprintf(cmd_slice,BUFF_MAX," %s-name %s -cpu %s -smp %s -m %s -boot order=%s -usb -device usb-tablet -vga %s %s%s",
-		vm_has_acc_enabled ? "--enable-kvm " : "",
-		vm_has_name ? vm_name : "QEMU",
-		cfg[KEY_CPU].val,
-		cfg[KEY_CORES].val,
-		cfg[KEY_MEM].val,
-		cfg[KEY_BOOT].val,
-		cfg[KEY_VGA].val,
-		vm_has_audio ? "-soundhw " : "",
-		vm_has_audio ? cfg[KEY_SND].val : ""
-	);
-	strcat(out_cmd,cmd_slice);
+	bool vm_has_name = (strcmp(vm_name, "") != 0 );
+	bool vm_has_acc_enabled = stricmp(cfg[KEY_ACC].val, "yes")==0;
+	bool vm_has_vncpwd = (strcmp(cfg[KEY_VNC_PWD].val, "") != 0);
+	bool vm_has_audio = stricmp(cfg[KEY_SND].val, "no")!=0;
+	bool vm_has_videoacc = stricmp(cfg[KEY_HOST_VIDEO_ACC].val, "yes")==0;
+	bool vm_is_headless = stricmp(cfg[KEY_HEADLESS].val, "yes")==0;
+	bool vm_clock_is_localtime = stricmp(cfg[KEY_LOCALTIME].val, "yes")==0;
+	bool vm_has_sharedf = (strcmp(cfg[KEY_SHARED].val, "") != 0);
+	bool vm_has_hddvirtio = stricmp(cfg[KEY_HDD_VIRTIO].val, "yes")==0;
+	bool vm_has_network = (strcmp(cfg[KEY_NET].val, "") != 0 );
+	vm_has_sharedf = vm_has_sharedf ? filetype(cfg[KEY_SHARED].val,FT_PATH) : 0;
 
-	if(vm_is_headless) {
-		snprintf(cmd_slice,BUFF_MAX," -display none -monitor telnet:127.0.0.1:%d,server,nowait -vnc %s",
-			telnet_port,
-			vm_has_vncpwd ? "127.0.0.1:0,password" : "127.0.0.1:0");
-		strcat(out_cmd,cmd_slice);
-	}else{
-		strcat(out_cmd,vm_has_videoacc ? " -display gtk,gl=on" : " -display gtk,gl=off");
+	if (strcmp(cfg[KEY_SYS].val, "x32") == 0) {
+		strcpy(out_cmd, "qemu-system-i386");
+#ifdef __WINDOWS__
+		strcpy(qemu_binary_file, "qemu-system-i386");
+#endif
+	} else if (strcmp(cfg[KEY_SYS].val, "x64") == 0) {
+		strcpy(out_cmd, "qemu-system-x86_64");
+#ifdef __WINDOWS__
+		strcpy(qemu_binary_file, "qemu-system-x86_64");
+#endif
+	} else { fatal(ERR_SYS); }
+	
+	if(vm_has_acc_enabled) { strcat(out_cmd, " --enable-kvm"); }
+	if(vm_has_name) { strcatx(out_cmd, " -name ",  vm_name, 0); }
+
+	strcatx(out_cmd,
+		" -cpu ", cfg[KEY_CPU].val,
+		" -smp ", cfg[KEY_CORES].val,
+		" -m ", cfg[KEY_MEM].val,
+		" -boot order=", cfg[KEY_BOOT].val,
+		" -usb -device usb-tablet -vga ", cfg[KEY_VGA].val,
+		0);
+
+	if(vm_has_audio) { strcatx(out_cmd, " -soundhw ", cfg[KEY_SND].val, 0); }
+
+	if (vm_is_headless) {
+		strcatx(out_cmd, " -display none -monitor telnet:127.0.0.1:55555,server,nowait -vnc 127.0.0.1:0", vm_has_vncpwd ? ",password" : "", 0);
+	} else {
+		strcatx(out_cmd, vm_has_videoacc ? " -display gtk,gl=on" : " -display gtk,gl=off", 0);
 	}
 
-	if(vm_has_network) {
-		snprintf(cmd_slice,BUFF_MAX," -nic user,model=%s%s%s",
-			cfg[KEY_NET].val,
-			vm_has_sharedf ? ",smb=" : "",
-			vm_has_sharedf ? cfg[KEY_SHARED].val : ""
-		);
-		out_cmd=strcat(out_cmd,cmd_slice);
-		bool vm_has_fwd_ports=(strcmp(cfg[KEY_FWD_PORTS].val,"no") != 0);
-		if(!vm_has_fwd_ports) {
-			out_cmd=strcat(out_cmd," ");
-		}else{
-			char* cfg_v_c=strdup(cfg[KEY_FWD_PORTS].val);
-			if(strchr(cfg_v_c,':') != NULL) { // If have fwd_ports=<HostPort>:<GuestPort>
-				char *fwd_ports_tk=strtok(cfg_v_c,":");
-				char fwd_port_a[16],fwd_port_b[16];
-				for (int i=0; fwd_ports_tk&&i<2; i++) {
-					strcpy(i==0 ? fwd_port_a : fwd_port_b,fwd_ports_tk);
-					fwd_ports_tk=strtok(NULL,":");
+	if (vm_has_network) {
+		strcatx(out_cmd, " -nic user,model=", cfg[KEY_NET].val, 0);
+		if(vm_has_sharedf) { strcatx(out_cmd, ",smb=", cfg[KEY_SHARED].val, 0); }
+		if (strcmp(cfg[KEY_FWD_PORTS].val, "no") != 0) {
+			char* cfg_v_c = strdup(cfg[KEY_FWD_PORTS].val);
+			if (strchr(cfg_v_c, ':') != NULL) { // If have fwd_ports=<HostPort>:<GuestPort>
+				char *fwd_ports_tk = strtok(cfg_v_c, ":");
+				char fwd_port_a[16], fwd_port_b[16];
+				for (int i = 0; fwd_ports_tk && i<2; i++) {
+					strcpy(i == 0 ? fwd_port_a : fwd_port_b, fwd_ports_tk);
+					fwd_ports_tk = strtok(NULL, ":");
 				}
-				snprintf(cmd_slice,BUFF_MAX,",hostfwd=tcp::%s-:%s,hostfwd=udp::%s-:%s",fwd_port_a,fwd_port_b,fwd_port_a,fwd_port_b);
-			}else{ // Else use the same port for Host and Guest.
-				snprintf(cmd_slice,BUFF_MAX,",hostfwd=tcp::%s-:%s,hostfwd=udp::%s-:%s",cfg_v_c,cfg_v_c,cfg_v_c,cfg_v_c);
+				strcatx(out_cmd,",hostfwd=tcp::",fwd_port_a,"-:",fwd_port_b,",hostfwd=udp::",fwd_port_a, "-:",fwd_port_b, 0);
+			} else { // Else use the same port for Host and Guest.
+				strcatx(out_cmd,",hostfwd=tcp::",cfg_v_c,"-:",cfg_v_c,",hostfwd=udp::",cfg_v_c, "-:",cfg_v_c, 0);
 			}
-			strcat(out_cmd,cmd_slice);
 		}
 	}
 
-	if(filetype(cfg[KEY_FLOPPY].val,FT_FILE)) {
-		snprintf(cmd_slice,BUFF_MAX," -drive index=%d,file=%s,if=floppy,format=raw",drive_index,cfg[KEY_FLOPPY].val);
-		strcat(out_cmd,cmd_slice);
+	if (filetype((const char*) cfg[KEY_FLOPPY].val,FT_FILE)) {
+		bcitoa(NULL, 10, drive_index, drive_str);
+		strcatx(out_cmd, " -drive index=", drive_str, ",file=", cfg[KEY_FLOPPY].val, ",format=raw", 0);
 		drive_index++;
 	}
 
-	if(filetype(cfg[KEY_CDROM].val,FT_FILE)) {
-		snprintf(cmd_slice,BUFF_MAX," -drive index=%d,file=%s,media=cdrom",drive_index,cfg[KEY_CDROM].val);
-		strcat(out_cmd,cmd_slice);
+	if (filetype(cfg[KEY_CDROM].val,FT_FILE)) {
+		bcitoa(NULL, 10, drive_index, drive_str);
+		strcatx(out_cmd, " -drive index=", drive_str, ",file=", cfg[KEY_CDROM].val, ",media=cdrom", 0);
 		drive_index++;
 	}
 
-	if(filetype(cfg[KEY_DISK].val,FT_FILE)) {
-		snprintf(cmd_slice,BUFF_MAX," -drive index=%d,file=%s%s",drive_index,cfg[KEY_DISK].val,vm_has_hddvirtio ? ",if=virtio" : "");
-		strcat(out_cmd,cmd_slice);
+	if (filetype(cfg[KEY_DISK].val,FT_FILE)) {
+		bcitoa(NULL, 10, drive_index, drive_str);
+		strcatx(out_cmd, " -drive index=", drive_str, ",file=", cfg[KEY_DISK].val, vm_has_hddvirtio ? ",if=virtio" : "", 0);
 		drive_index++;
 	}
 
@@ -288,34 +339,31 @@ void program_build_cmd_line(char *vm_name,char *out_cmd) {
 	/* QEMU on Windows needs,for some reason,to have an additional argument with the program path on it,
 	* For example if you have it on: "C:\Program Files\Qemu",You have to run it like this: qemu-system-i386.exe -L "C:\Program Files\Qemu"
 	* Otherwise it wont find the BIOS file.. */
-	char q_fp[BUFF_AVG],q_fn[BUFF_AVG],wfix_arg[BUFF_AVG+6]={0};
-	size_t q_fn_l=0;
-	dprint();
-	for (; cmd_sp[q_fn_l]&&cmd_sp[q_fn_l] != ' '; q_fn_l++) { q_fn[q_fn_l]=cmd_sp[q_fn_l]; } // Copy the qemu exe file name
-	q_fn[q_fn_l]=0;
-	if(! get_binary_full_path(q_fn,NULL,&q_fp[0])) { fatal(ERR_EXEC); } // Grab Qemu EXE file path,using PATH env.
-	snprintf(wfix_arg,sizeof(wfix_arg)," -L \"%s\"",q_fp);
-	strcat(out_cmd,wfix_arg); // Appened the command line argument.
+	char qemu_binary_full_path[BUFF_AVG]={0};
+	char *qemu_binary_full_path_p = &qemu_binary_full_path[0];
+	if (! get_binary_full_path(qemu_binary_file, NULL, qemu_binary_full_path_p)) { fatal(ERR_EXEC); }
+	strcatx(out_cmd, " -L \"", qemu_binary_full_path_p, "\"", 0);
 #else
-	if(vm_has_rngdev) strcat(out_cmd," -object rng-random,id=rng0,filename=/dev/random -device virtio-rng-pci,rng=rng0");
+	if (vm_has_rngdev) { strcat(out_cmd, " -object rng-random,id=rng0,filename=/dev/random -device virtio-rng-pci,rng=rng0"); }
 #endif
-	if(vm_clock_is_localtime) strcat(out_cmd," -rtc base=localtime");
+	if (vm_clock_is_localtime) { strcat(out_cmd, " -rtc base=localtime"); }
 }
 
 void program_find_vm_and_chdir(int argc,char **argv,char *out_vm_name,char *out_vm_cfg_file) {
 	char vm_dir[PATH_MAX+1],*env,*env_dir;
 	bool vm_dir_exists=0,cfg_file_exists=0;
 	dprint();
-	if(argc < 2) { fatal(ERR_ARGS); }
-	strcpy(out_vm_name,argv[1]);
-	env=getenv("QEMURUN_VM_PATH");
-	if(!env) { fatal(ERR_ENV); }
-	env_dir=strtok(env,PSEP);
-	while(env_dir&&!vm_dir_exists) {
-		char* env_dir_q=cstr_remove_quotes(env_dir);
-		snprintf(vm_dir,PATH_MAX,"%s"DSEP"%s",env_dir_q,out_vm_name);
-		vm_dir_exists=filetype(vm_dir,FT_PATH);
-		env_dir=strtok(NULL,PSEP);
+	if (argc < 2) { fatal(ERR_ARGS); }
+	strcpy(out_vm_name, argv[1]);
+	env = getenv("QEMURUN_VM_PATH");
+	if (!env) { fatal(ERR_ENV); }
+	env_dir = strtok(env, PSEP);
+	while ( env_dir && !vm_dir_exists ) {
+		char* env_dir_q = cstr_remove_quotes(env_dir);
+		mzero_ca(vm_dir);
+		strcatx(vm_dir, env_dir_q, DSEP, out_vm_name, 0);
+		vm_dir_exists = filetype(vm_dir,FT_PATH);
+		env_dir = strtok(NULL, PSEP);
 	}
 	if(! vm_dir_exists) { fatal(ERR_ENV); }
 	if(chdir(vm_dir) != 0) { fatal(ERR_CHDIR_VM_DIR); }

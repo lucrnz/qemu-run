@@ -1,4 +1,4 @@
-CC=gcc
+CC ?= gcc
 CSTD=-std=c99 -Wall -Wextra
 CFLAGS_REL=-Os -s -mtune=generic
 CFLAGS_DBG=-g -O0 -D DEBUG -mtune=generic -fsanitize=address,leak
