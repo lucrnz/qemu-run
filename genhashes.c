@@ -47,16 +47,6 @@ char *strupr_a(const char *s) {
 	return p;
 }
 
-char *hash_to_str_a(long hash) {
-	char *p = malloc(9);
-	if(!p) return "";
-	snprintf(p, 9, "%8lX", hash);
-	if(p[0]==' ') { p[0]='X';}
-	dynm_i++;
-	dynm[dynm_i]=p;
-	return p;
-}
-
 int main(int argc, char **argv) {
 	FILE *fh;
 	st_symbols *sym;
@@ -86,10 +76,10 @@ int main(int argc, char **argv) {
 	for(sym=sym_first(),cnt=0;sym;cnt++,sym=sym_next()) {
 		fprintf(fh,"KEY_%s,",strupr_a(sym->key));
 	}
-	fprintf(fh,"KEY_ENDLIST };\n\ntypedef struct {\n\tchar hash[9];\n\tchar *val;\n} st_config;\n\nst_config cfg[%d] = {\n",cnt+1);
+	fprintf(fh,"KEY_ENDLIST };\n\ntypedef struct {\n\tint hash;\n\tchar *val;\n} st_config;\n\nst_config cfg[%d] = {\n",cnt+1);
 	
 	for(sym=sym_first(),cnt=0;sym;cnt++,sym=sym_next()) {
-		fprintf(fh,"\t{\"%s\", \"%s\"}%s\t\t/* %s */\n",hash_to_str_a(sym->hash),sym->val?sym->val:"",sym->next?",":"",sym->key);
+	   fprintf(fh,"\t{0x%8.8X, \"%s\"}%s\t\t/* %s */\n",sym->hash,sym->val?sym->val:"",sym->next?",":"",sym->key);
 	}
 	fprintf(fh,"};\n");
 	fprintf(fh,"#endif //QEMU_RUN_CONFIG_H\n");

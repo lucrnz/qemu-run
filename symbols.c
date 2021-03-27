@@ -36,7 +36,7 @@
  */
 typedef struct st_symbols {
    struct st_symbols    *next;   /**< Link List Next Element */
-   long                  hash;   /**<  Hash Value*/
+   int                  hash;   /**<  Hash Value*/
    char                 *key,    /**<  Symbol Name */
                         *val;    /**<  Symbol Value */
 } st_symbols;
@@ -47,7 +47,7 @@ typedef struct st_symbols {
  *
  */
 typedef struct st_hashmap {
-   long         hash;   /**<  Hash Value*/
+   int         hash;   /**<  Hash Value*/
    st_symbols  *symbol; /**<  Pointer to Symbol */
 } st_hashmap;
 
@@ -86,7 +86,7 @@ st_symbols *sym_base(void)
  *
  *
  */
-st_symbols *sym_find_hash(long hash)
+st_symbols *sym_find_hash(int hash)
 {
    int count=0;
    st_syminfo *si;
@@ -110,10 +110,9 @@ st_symbols *sym_find_hash(long hash)
  *
  *
  */
-long sym_hash_generate(char *str,int exists)
+int sym_hash_generate(char *str,int exists)
 {
-   int pos;
-   long hash=0xCAFEBABE;
+   int pos, hash=0xCAFEBABE;
    for(;;) {
       pos=0;
       while(str[pos]) {
@@ -123,6 +122,7 @@ long sym_hash_generate(char *str,int exists)
             (hash<<18));
          pos++;
       }
+      hash&=0xFFFFFFFF;
       if(!exists && sym_find_hash(hash)) {
          printf("Hash Collision (%s)\n",str);
          exit(1);
@@ -134,10 +134,9 @@ long sym_hash_generate(char *str,int exists)
    return hash;
 }
 
-
 st_symbols *sym_find_key(char *name)
 {
-   long hash;
+   int hash;
 
    hash=sym_hash_generate(name,1);
 
@@ -147,7 +146,7 @@ st_symbols *sym_find_key(char *name)
 int sym_add(char *key,char *val)
 {
    static const char* empty_str="";
-   long hash;
+   int hash;
    st_syminfo *si;
    st_symbols *sym;
    if(!val) val = empty_str;
