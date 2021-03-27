@@ -70,7 +70,7 @@ char *strdup(const char *s) {
 
 #include "config.h"
 
-#define mzero_ca(a) memset(a, sizeof(a), 0);
+#define mzero_ca(a) memset(a, 0, sizeof(a));
 
 char *strcatx(char *str, ...) {
 	va_list ap;
@@ -86,13 +86,13 @@ char *strcatx(char *str, ...) {
 	return str;
 }
 
-char *bcitoa(char *sequence,int base,int num,char *out_buf) {
+char *bcitoa(char *sequence,int base,int num,char *out_buff) {
 	char *dflt="0123456789ABCDEF";
 	char *str,*vals;
 	int max=1,len=1,idx=0;
 	vals=(sequence==NULL)?dflt:sequence;
 	while((max*base)<num) {max*=base;len++;}
-	if(out_buf) {
+	if(out_buff) {
 	   str=out_buff;
 	} else {
 		str=(char *)calloc(1,len+1);
@@ -195,7 +195,7 @@ bool get_binary_full_path(const char *bin_fname,char *out_bin_fpath,char *out_di
 	return found;
 }
 #endif
-d
+
 void program_load_config(const char *fpath) {
 	dprint();
 	FILE *fptr=fopen(fpath,"r");
@@ -251,7 +251,6 @@ void program_build_cmd_line(char *vm_name, char *out_cmd) {
 #else
 	bool vm_has_rngdev=stricmp(cfg[KEY_RNG_DEV].val,"yes")==0;
 #endif
-<<<<<<< HEAD
 	bool vm_has_name = (strcmp(vm_name, "") != 0 );
 	bool vm_has_acc_enabled = stricmp(cfg[KEY_ACC].val, "yes")==0;
 	bool vm_has_vncpwd = (strcmp(cfg[KEY_VNC_PWD].val, "") != 0);
@@ -296,7 +295,7 @@ void program_build_cmd_line(char *vm_name, char *out_cmd) {
 
 	if (vm_has_network) {
 		strcatx(out_cmd, " -nic user,model=", cfg[KEY_NET].val);
-		if(vm_has_sharedf) { strcatx2(out_cmd, ",smb=", cfg[KEY_SHARED].val); }
+		if(vm_has_sharedf) { strcatx(out_cmd, ",smb=", cfg[KEY_SHARED].val); }
 		if (strcmp(cfg[KEY_FWD_PORTS].val, "no") != 0) {
 			char* cfg_v_c = strdup(cfg[KEY_FWD_PORTS].val);
 			if (strchr(cfg_v_c, ':') != NULL) { // If have fwd_ports=<HostPort>:<GuestPort>
@@ -349,7 +348,6 @@ void program_find_vm_and_chdir(int argc,char **argv,char *out_vm_name,char *out_
 	char vm_dir[PATH_MAX+1],*env,*env_dir;
 	bool vm_dir_exists=0,cfg_file_exists=0;
 	dprint();
-<<<<<<< HEAD
 	if (argc < 2) { fatal(ERR_ARGS); }
 	strcpy(out_vm_name, argv[1]);
 	env = getenv("QEMURUN_VM_PATH");
@@ -358,21 +356,9 @@ void program_find_vm_and_chdir(int argc,char **argv,char *out_vm_name,char *out_
 	while ( env_dir && !vm_dir_exists ) {
 		char* env_dir_q = cstr_remove_quotes(env_dir);
 		mzero_ca(vm_dir);
-		strcatx(vm_dir, dir_pq, env_dir_q, DSEP, out_vm_name);
+		strcatx(vm_dir, env_dir_q, DSEP, out_vm_name);
 		vm_dir_exists = filetype(vm_dir,FT_PATH);
 		env_dir = strtok(NULL, PSEP);
-=======
-	if(argc < 2) { fatal(ERR_ARGS); }
-	strcpy(out_vm_name,argv[1]);
-	env=getenv("QEMURUN_VM_PATH");
-	if(!env) { fatal(ERR_ENV); }
-	env_dir=strtok(env,PSEP);
-	while(env_dir&&!vm_dir_exists) {
-		char* env_dir_q=cstr_remove_quotes(env_dir);
-		snprintf(vm_dir,PATH_MAX,"%s"DSEP"%s",env_dir_q,out_vm_name);
-		vm_dir_exists=filetype(vm_dir,FT_PATH);
-		env_dir=strtok(NULL,PSEP);
->>>>>>> main
 	}
 	if(! vm_dir_exists) { fatal(ERR_ENV); }
 	if(chdir(vm_dir) != 0) { fatal(ERR_CHDIR_VM_DIR); }
