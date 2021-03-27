@@ -11,6 +11,7 @@ along with qemu-run; see the file LICENSE.  If not see <http://www.gnu.org/licen
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <string.h>
 #include <ctype.h>
@@ -72,13 +73,53 @@ char *strdup(const char *s) {
 #include "config.h"
 
 #define mzero_ca(a) memset(a, sizeof(a), 0);
-#define strcatx2(t, s1, s2) strcat(t, s1); strcat(t, s2);
-#define strcatx3(t, s1, s2, s3) strcatx2(t, s1, s2); strcat(t, s3);
-#define strcatx4(t, s1, s2, s3, s4) strcatx3(t, s1, s2, s3); strcat(t, s4);
-#define strcatx5(t, s1, s2, s3, s4, s5) strcatx4(t, s1, s2, s3, s4); strcat(t, s5);
-#define strcatx6(t, s1, s2, s3, s4, s5, s6) strcatx5(t, s1, s2, s3, s4, s5); strcat(t, s6);
-#define strcatx7(t, s1, s2, s3, s4, s5, s6, s7) strcatx6(t, s1, s2, s3, s4, s5, s6); strcat(t, s7);
-#define strcatx8(t, s1, s2, s3, s4, s5, s6, s7, s8) strcatx7(t, s1, s2, s3, s4, s5, s6, s7); strcat(t, s8);
+
+char *strcatx(char *str, ...) {
+	va_list ap;
+	int dl,sl;
+	char *arg;
+	for(dl=0;str[dl];dl++);
+	va_start(ap,str);
+	while ((arg = va_arg(ap,char*))) {
+		for(sl=0;arg[sl];sl++) { str[dl++]=arg[sl]; }
+	}
+	va_end(ap);
+	str[dl]=0;
+	return str;
+}
+
+char *bcitoa(char *sequence,int base,int num,char *out_buf) {
+	char *dflt="0123456789ABCDEF";
+	char *str,*vals;
+	int max=1,len=1,idx=0;
+	vals=(sequence==NULL)?dflt:sequence;
+	while((max*base)<num) {max*=base;len++;}
+	if(out_buf) {
+	   str=out_buff;
+	} else {
+		str=(char *)calloc(1,len+1);
+	}
+	while(len--) {
+		str[idx++]=vals[(num/max)];
+		num-=(num/max)*max;
+		max/=base;
+   }
+   return str;
+}
+
+int bcatoi(char *sequence,int base,char *str) {
+   char *dflt="0123456789ABCDEF";
+   char *val;
+   int num=0,idx;
+   val=(sequence==NULL)?dflt:sequence;
+   while(*str) {
+      for(idx=0;idx<base && *str!=val[idx];idx++);
+      if(idx==base) {num=0;break;}
+      num=(num*base)+idx;
+      str++;
+   }
+   return num;
+}
 
 enum {ERR_UNKOWN,ERR_ARGS,ERR_ENV,ERR_CHDIR_VM_DIR,ERR_OPEN_CONFIG,ERR_FIND_CONFIG,ERR_SYS,ERR_EXEC,ERR_ENDLIST};
 void fatal(unsigned int errcode) {
@@ -137,7 +178,7 @@ char* cstr_remove_quotes(char* c) {
 	dprint();
 	size_t len = strlen(c);
 	if (c[len-1] == '\"' && c[0] == '\"') {
-		c[len-1] = '\0';
+		c[len-1] = 0;
 		return c+1;
 	} else { return c; }
 }
@@ -146,15 +187,15 @@ char* cstr_remove_quotes(char* c) {
 bool get_binary_full_path(const char *bin_fname, char *out_bin_fpath, char *out_dir) {
 	dprint();
 	bool found = 0;
-	char fp_b[PATH_MAX]={0}, env_b[PATH_MAX*16], *env;
-	strcpy(env_b, (const char *)((env=getenv("PATH"))?env:""));
-	char *dir_p = strtok(env_b, PSEP);
+	char fp_b[PATH_MAX]={0};
+	char *env = getenv("PATH");
+	char *dir_p = strtok(env, PSEP);
 	while (dir_p && !found) {
 		char* dir_pq = cstr_remove_quotes(dir_p);
-		strcatx3(fp_b, dir_pq, DSEP, bin_fname); found = filetype(fpath_b, FT_FILE);
-		if (!found) { mzero_ca(fp_b); strcatx4(fp_b, dir_pq, DSEP, bin_fname, ".exe"); found = filetype(fpath_b, FT_FILE); }
-		if (!found) { mzero_ca(fp_b); strcatx4(fp_b, dir_pq, DSEP, bin_fname, ".bat"); found = filetype(fpath_b, FT_FILE); }
-		if (!found) { mzero_ca(fp_b); strcatx4(fp_b, dir_pq, DSEP, bin_fname, ".com"); found = filetype(fpath_b, FT_FILE); }
+		strcatx(fp_b, dir_pq, DSEP, bin_fname); found = filetype(fpath_b, FT_FILE);
+		if (!found) { mzero_ca(fp_b); strcatx(fp_b, dir_pq, DSEP, bin_fname, ".exe"); found = filetype(fpath_b, FT_FILE); }
+		if (!found) { mzero_ca(fp_b); strcatx(fp_b, dir_pq, DSEP, bin_fname, ".bat"); found = filetype(fpath_b, FT_FILE); }
+		if (!found) { mzero_ca(fp_b); strcatx(fp_b, dir_pq, DSEP, bin_fname, ".com"); found = filetype(fpath_b, FT_FILE); }
 		if (found && out_dir) { strcpy(out_dir, dir_pq); }
 		dir_p = strtok(NULL, PSEP);
 	}
@@ -162,7 +203,7 @@ bool get_binary_full_path(const char *bin_fname, char *out_bin_fpath, char *out_
 	return found;
 }
 #endif
-
+d
 void program_load_config(const char *fpath) {
 	dprint();
 	FILE *fptr = fopen(fpath, "r");
@@ -210,7 +251,7 @@ void program_set_default_cfg_values() {
 
 void program_build_cmd_line(char *vm_name, char *out_cmd) {
 	int drive_index = 0; // telnet_port = 55555; // @TODO: Get usable TCP port
-	char cmd_slice[BUFF_MAX] = {0};
+	char drive_str[4]={0};
 	dprint();
 #ifdef __WINDOWS__
 	char* cmd_sp = out_cmd; // Need this variable, for a Windows fix..
@@ -243,22 +284,25 @@ void program_build_cmd_line(char *vm_name, char *out_cmd) {
 	} else { fatal(ERR_SYS); }
 	
 	if(vm_has_acc_enabled) { strcat(out_cmd, " --enable-kvm"); }
-	if(vm_has_name) { strcatx2(out_cmd, " -name ",  vm_name); }
-	strcatx2(out_cmd, " -cpu ", cfg[KEY_CPU].val);
-	strcatx2(out_cmd, " -smp ", cfg[KEY_CORES].val);
-	strcatx2(out_cmd, " -m ", cfg[KEY_MEM].val);
-	strcatx2(out_cmd, " -boot order=", cfg[KEY_BOOT].val);
-	strcatx2(out_cmd, " -usb -device usb-tablet -vga ", cfg[KEY_BOOT].val);
-	if(vm_has_audio) { strcatx2(out_cmd, " -soundhw ", cfg[KEY_SND].val); }
+	if(vm_has_name) { strcatx(out_cmd, " -name ",  vm_name); }
+	
+	strcatx(out_cmd,
+		" -cpu ", cfg[KEY_CPU].val,
+		" -smp ", cfg[KEY_CORES].val,
+		" -m ", cfg[KEY_MEM].val,
+		" -boot order=", cfg[KEY_BOOT].val,
+		" -usb -device usb-tablet -vga ", cfg[KEY_BOOT].val);
+
+	if(vm_has_audio) { strcatx(out_cmd, " -soundhw ", cfg[KEY_SND].val); }
 
 	if (vm_is_headless) {
-	   strcatx2(out_cmd, " -display none -monitor telnet:127.0.0.1:55555,server,nowait -vnc 127.0.0.1:0", vm_has_vncpwd ? ",password" : "");
+	   strcatx(out_cmd, " -display none -monitor telnet:127.0.0.1:55555,server,nowait -vnc 127.0.0.1:0", vm_has_vncpwd ? ",password" : "");
 	} else {
 		strcat(out_cmd, vm_has_videoacc ? " -display gtk,gl=on" : " -display gtk,gl=off");
 	}
 
 	if (vm_has_network) {
-		strcatx2(out_cmd, " -nic user,model=", cfg[KEY_NET].val);
+		strcatx(out_cmd, " -nic user,model=", cfg[KEY_NET].val);
 		if(vm_has_sharedf) { strcatx2(out_cmd, ",smb=", cfg[KEY_SHARED].val); }
 		if (strcmp(cfg[KEY_FWD_PORTS].val, "no") != 0) {
 			char* cfg_v_c = strdup(cfg[KEY_FWD_PORTS].val);
@@ -269,28 +313,30 @@ void program_build_cmd_line(char *vm_name, char *out_cmd) {
 					strcpy(i == 0 ? fwd_port_a : fwd_port_b, fwd_ports_tk);
 					fwd_ports_tk = strtok(NULL, ":");
 				}
-				strcatx8(out_cmd,",hostfwd=tcp::",fwd_port_a,"-:",fwd_port_b,",hostfwd=udp::",fwd_port_a, "-:",fwd_port_b);
+				strcatx(out_cmd,",hostfwd=tcp::",fwd_port_a,"-:",fwd_port_b,",hostfwd=udp::",fwd_port_a, "-:",fwd_port_b);
 			} else { // Else use the same port for Host and Guest.
-				strcatx8(out_cmd,",hostfwd=tcp::",cfg_v_c,"-:",cfg_v_c,",hostfwd=udp::",cfg_v_c, "-:",cfg_v_c);
+				strcatx(out_cmd,",hostfwd=tcp::",cfg_v_c,"-:",cfg_v_c,",hostfwd=udp::",cfg_v_c, "-:",cfg_v_c);
 			}
 		}
 	}
 
+
+
 	if (filetype((const char*) cfg[KEY_FLOPPY].val,FT_FILE)) {
-		snprintf(cmd_slice, BUFF_MAX, " -drive index=%d,file=%s,if=floppy,format=raw", drive_index, cfg[KEY_FLOPPY].val);
-		strcat(out_cmd, cmd_slice);
+		bcitoa(NULL, 10, drive_index, drive_str);
+		strcatx(out_cmd, " -drive index=", drive_str, "file=", cfg[KEY_FLOPPY].val, ",format=raw");
 		drive_index++;
 	}
 
 	if (filetype(cfg[KEY_CDROM].val,FT_FILE)) {
-		snprintf(cmd_slice, BUFF_MAX, " -drive index=%d,file=%s,media=cdrom", drive_index, cfg[KEY_CDROM].val);
-		strcat(out_cmd, cmd_slice);
+		bcitoa(NULL, 10, drive_index, drive_str);
+		strcatx(out_cmd, " -drive index=", drive_str, "file=", cfg[KEY_CDROM].val, ",fmedia=cdrom");
 		drive_index++;
 	}
 
 	if (filetype(cfg[KEY_DISK].val,FT_FILE)) {
-		snprintf(cmd_slice, BUFF_MAX, " -drive index=%d,file=%s%s", drive_index, cfg[KEY_DISK].val, vm_has_hddvirtio ? ",if=virtio" : "");
-		strcat(out_cmd, cmd_slice);
+		bcitoa(NULL, 10, drive_index, drive_str);
+		strcatx(out_cmd, " -drive index=", drive_str, "file=", cfg[KEY_DISK].val, ",fmedia=cdrom", vm_has_hddvirtio ? ",if=virtio" : "");
 		drive_index++;
 	}
 
@@ -301,7 +347,7 @@ void program_build_cmd_line(char *vm_name, char *out_cmd) {
 	char qemu_binary_full_path[BUFF_AVG]={0};
 	char *qemu_binary_full_path_p = &qemu_binary_full_path[0];
 	if (! get_binary_full_path(qemu_binary_file, NULL, qemu_binary_full_path_p)) { fatal(ERR_EXEC); }
-	strcatx3(out_cmd, " -L \"", qemu_binary_full_path_p, "\"");
+	strcatx(out_cmd, " -L \"", qemu_binary_full_path_p, "\"");
 #else
 	if (vm_has_rngdev) { strcat(out_cmd, " -object rng-random,id=rng0,filename=/dev/random -device virtio-rng-pci,rng=rng0"); }
 #endif
@@ -319,7 +365,8 @@ void program_find_vm_and_chdir(int argc, char **argv, char *out_vm_name, char *o
 	env_dir = strtok(env, PSEP);
 	while ( env_dir && !vm_dir_exists ) {
 		char* env_dir_q = cstr_remove_quotes(env_dir);
-		snprintf(vm_dir, PATH_MAX, "%s"DSEP"%s", env_dir_q, out_vm_name);
+		mzero_ca(vm_dir);
+		strcatx(vm_dir, dir_pq, env_dir_q, DSEP, out_vm_name);
 		vm_dir_exists = filetype(vm_dir,FT_PATH);
 		env_dir = strtok(NULL, PSEP);
 	}
