@@ -184,14 +184,14 @@ bool get_binary_full_path(const char *bin_fname,char *out_bin_fpath,char *out_di
 	char *dir_p = strtok(env, PSEP);
 	while (dir_p && !found) {
 		char* dir_pq = cstr_remove_quotes(dir_p);
-		strcatx(fp_b, dir_pq, DSEP, bin_fname, 0); found = filetype(fpath_b, FT_FILE);
-		if (!found) { mzero_ca(fp_b); strcatx(fp_b, dir_pq, DSEP, bin_fname, ".exe", 0); found = filetype(fpath_b, FT_FILE); }
-		if (!found) { mzero_ca(fp_b); strcatx(fp_b, dir_pq, DSEP, bin_fname, ".bat", 0); found = filetype(fpath_b, FT_FILE); }
-		if (!found) { mzero_ca(fp_b); strcatx(fp_b, dir_pq, DSEP, bin_fname, ".com", 0); found = filetype(fpath_b, FT_FILE); }
+		strcatx(fp_b, dir_pq, DSEP, bin_fname, 0); found = filetype(fp_b, FT_FILE);
+		if (!found) { mzero_ca(fp_b); strcatx(fp_b, dir_pq, DSEP, bin_fname, ".exe", 0); found = filetype(fp_b, FT_FILE); }
+		if (!found) { mzero_ca(fp_b); strcatx(fp_b, dir_pq, DSEP, bin_fname, ".bat", 0); found = filetype(fp_b, FT_FILE); }
+		if (!found) { mzero_ca(fp_b); strcatx(fp_b, dir_pq, DSEP, bin_fname, ".com", 0); found = filetype(fp_b, FT_FILE); }
 		if (found && out_dir) { strcpy(out_dir, dir_pq); }
 		dir_p = strtok(NULL, PSEP);
 	}
-	if(found&&out_bin_fpath) { strcpy(out_bin_fpath,fpath_b); }
+	if(found&&out_bin_fpath) { strcpy(out_bin_fpath,fp_b); }
 	return found;
 }
 #endif
@@ -250,7 +250,6 @@ void program_build_cmd_line(char *vm_name, char *out_cmd) {
 	char drive_str[4]={0};
 	dprint();
 #ifdef __WINDOWS__
-	char* cmd_sp = out_cmd; // Need this variable, for a Windows fix..
 	char qemu_binary_file[64] = {0};
 #else
 	bool vm_has_rngdev=stricmp(cfg[KEY_RNG_DEV].val,"yes")==0;
