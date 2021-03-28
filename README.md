@@ -29,7 +29,7 @@ For this example, we are gonna download one of the smallest GNU/Linux distros: [
 	wget http://www.tinycorelinux.net/12.x/x86/release/TinyCore-current.iso -O tinycore.iso
 	echo "sys=x32" > config.ini # Initialize the VM config file.
 	echo "cdrom=tinycore.iso" >> config.ini
-	qemu-run TinyCore
+	qemu-run tinycore
    You should be see Tiny Core Linux booting up 😃
    
    If you need a hard drive (for example, you are installing a GNU/Linux like Debian)
