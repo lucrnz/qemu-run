@@ -28,7 +28,7 @@
 
 FILE *fopen_or_fatal(const char *fpath, const char* mode) {
 	FILE *h = fopen(fpath, mode);
-	if(!h) { fprintf("genhashes: Cannot open file: %s\n", fpath); exit(1); }
+	if(!h) { printf("genhashes: Cannot open file: %s\n", fpath); exit(1); }
 	return h;
 }
 
