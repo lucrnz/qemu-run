@@ -24,17 +24,17 @@ Now, grab yourself an ISO of any operative system you want to emulate.
 For this example, we are gonna download one of the smallest GNU/Linux distros: [TinyCore](http://www.tinycorelinux.net/).
 
 	cd $HOME/VM
-	mkdir TinyCore
-	cd TinyCore
-	echo "sys=x32" > config # Initialize the VM config file.
-	curl http://www.tinycorelinux.net/12.x/x86/release/TinyCore-current.iso > TinyCore.iso
-	ln -s TinyCore.iso cdrom # This is how the VM detects the optical media attached to it.
+	mkdir tinycore
+	cd tinycore
+	wget http://www.tinycorelinux.net/12.x/x86/release/TinyCore-current.iso -O tinycore.iso
+	echo "sys=x32" > config.ini # Initialize the VM config file.
+	echo "cdrom=tinycore.iso" >> config.ini
 	qemu-run TinyCore
    You should be see Tiny Core Linux booting up 😃
    
    If you need a hard drive (for example, you are installing a GNU/Linux like Debian)
 
-	qemu-img create -f qcow2 disk 64G # Replace the size as you like.
+	qemu-img create -f qcow2 disk.qcow2 64G # Replace the size as you like.
 	
   
 # Warning: Beta software!
