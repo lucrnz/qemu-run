@@ -6,12 +6,12 @@ PWD=$(shell pwd)
 DOCKER_CONT_NAME=buildenv-qemu-run
 
 all: release
-.PHONY: clean_rm_config_h clean_rm_all_binaries genhashes release_binary debug_binary clean release debug docker
+.PHONY: rm_config_h rm_bin genhashes rel_bin dbg_bin clean release debug docker
 
-clean_rm_config_h:
+rm_config_h:
 	rm -rv config.h || test 1
 
-clean_rm_all_binaries:
+rm_bin:
 	rm -rv *.bin || test 1
 
 genhashes:
@@ -19,18 +19,24 @@ genhashes:
 	chmod -v +x genhashes.bin
 	./genhashes.bin
 
-release_binary:
+rel_bin:
 	${CC} ${CSTD} ${CFLAGS_REL} qemu-run.c -o qemu-run.bin
 
-debug_binary:
+dbg_bin:
 	${CC} ${CSTD} ${CFLAGS_DBG} qemu-run.c -o qemu-run.bin
 
-clean: clean_rm_config_h clean_rm_all_binaries
-release: clean genhashes release_binary clean
-debug: clean genhashes debug_binary clean
+clean: rm_config_h rm_bin
+release: clean genhashes rel_bin clean
+debug: clean genhashes dbg_bin clean
 
 docker:
+	echo -e "FROM ubuntu:xenial" > Dockerfile
+	echo -e "ENV DEBIAN_FRONTEND=\"noninteractive\"" >> Dockerfile
+	echo -e "RUN apt-get update && \\" >> Dockerfile
+	echo -e "\tapt-get install --no-install-recommends --yes gcc libc6-dev make && \\" >> Dockerfile
+	echo -e "\tapt-get clean\n" >> Dockerfile
 	docker rmi ${DOCKER_CONT_NAME}:latest || test 1
 	docker build --force-rm --no-cache -t ${DOCKER_CONT_NAME} .
 	docker run -it -v ${PWD}:/app -w /app ${DOCKER_CONT_NAME} make
 	docker rmi -f ${DOCKER_CONT_NAME}:latest
+	rm -rv Dockerfile || test 1

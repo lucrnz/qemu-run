@@ -1,14 +1,3 @@
-/*Copyright (C) 2021 Lucie Cupcakes <lucie_linux [at] protonmail.com>
-This file is part of qemu-run <https://github.com/lucie-cupcakes/qemu-run>.
-qemu-run is free software; you can redistribute it and/or modify it under
-the terms of the GNU General Public License as published by the Free
-Software Foundation; either version 3, or (at your option) any later version.
-qemu-run is distributed in the hope that it will be useful, but WITHOUT ANY
-WARRANTY; without even the implied warranty of MERCHANTABILITY or
-FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
-You should have received a copy of the GNU General Public License
-along with qemu-run; see the file LICENSE.  If not see <http://www.gnu.org/licenses/>.*/
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -64,9 +53,6 @@ char *strdup(const char *s) {
 	return p ? memcpy(p,s,n) : p;
 }
 #endif
-
-#define puts_gpl_banner()                                              \
-	puts("qemu-run. Forever beta software. Use on production on your own risk!\nThis software is Free software - released under the GPLv3 License.\nRead the LICENSE file. Or go visit https://www.gnu.org/licenses/gpl-3.0.html\n")
 
 #include "config.h"
 
@@ -376,7 +362,6 @@ void program_find_vm_and_chdir(int argc,char **argv,char *out_vm_name,char *out_
 int main(int argc,char **argv) {
 	char cmd[BUFF_MAX],vm_name[BUFF_AVG],vm_cfg_file[BUFF_AVG];
 	dprint();
-	puts_gpl_banner();
 	program_find_vm_and_chdir(argc,argv,vm_name,vm_cfg_file);
 	program_set_default_cfg_values();
 	program_load_config(vm_cfg_file);

@@ -3,3 +3,4 @@
 *.bin
 *.exe
 config.h
+Dockerfile

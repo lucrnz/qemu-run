@@ -35,11 +35,4 @@ For this example, we are gonna download one of the smallest GNU/Linux distros: [
    If you need a hard drive (for example, you are installing a GNU/Linux like Debian)
 
 	qemu-img create -f qcow2 disk.qcow2 64G # Replace the size as you like.
-	
-  
-# Warning: Beta software!
-This piece of software is barely tested, don't use it on mission critical systems.
 
-# Free (as in freedom) software
-This software is subject to the GPLv3 or Later LICENSE, check LICENSE file for more information,
-Or go visit [GNU Project - GPLv3 Page](https://www.gnu.org/licenses/gpl-3.0.html)
