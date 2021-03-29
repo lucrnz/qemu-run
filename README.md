@@ -17,7 +17,7 @@ For doing this we simple edit our [bashrc](https://duckduckgo.com/?q=What%20is%2
 
 You can also specify multiple directories, by separating them by ":" , for example: 
 
-	echo "export QEMURUN_VM_PATH="$HOME/VM:/media/volume/VM" >> $HOME/.bashrc
+	echo "export QEMURUN_VM_PATH=\"$HOME/VM:/media/volume/VM\"" >> $HOME/.bashrc
 
 For this simple example, let's stick with `$HOME/VM`
 Now, grab yourself an ISO of any operative system you want to emulate.
