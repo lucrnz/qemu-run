@@ -105,7 +105,7 @@ int bcatoi(char *sequence,int base,char *str) {
    return num;
 }
 
-enum {ERR_UNKOWN,ERR_ARGS,ERR_ENV,ERR_CHDIR_VM_DIR,ERR_OPEN_CONFIG,ERR_FIND_CONFIG,ERR_SYS,ERR_EXEC,ERR_ENDLIST};
+enum {ERR_UNKOWN,ERR_ARGS,ERR_ENV,ERR_CHDIR_VM_DIR,ERR_OPEN_CONFIG,ERR_FIND_CONFIG,ERR_SYS,ERR_NETCONF_IP,ERR_SHAREDF,ERR_EXEC,ERR_ENDLIST};
 void fatal(unsigned int errcode) {
 	char *errs[]={
 		"Unkown error.",// ERR_UNKOWN
@@ -115,6 +115,8 @@ void fatal(unsigned int errcode) {
 		"Cannot find VM config file. Is it created?",
 		"Cannot open config file. Maybe check file permissions",
 		"Config file has an invalid value for sys",
+		"Invalid configuration: VM has enabled network, but has IPv6 and IPv4 disabled. Please enable at least one",
+		"Invalid configuration: VM has disabled network, and specified a shared folder. Enable network or disable the shared folder.",
 		"There was an error trying to execute qemu. Is it installed?"
 	};
 	dprint();
@@ -248,9 +250,12 @@ void program_build_cmd_line(char *vm_name, char *out_cmd) {
 	bool vm_has_videoacc = stricmp(cfg[KEY_HOST_VIDEO_ACC].val, "yes")==0;
 	bool vm_is_headless = stricmp(cfg[KEY_HEADLESS].val, "yes")==0;
 	bool vm_clock_is_localtime = stricmp(cfg[KEY_LOCALTIME].val, "yes")==0;
-	bool vm_has_sharedf = (strcmp(cfg[KEY_SHARED].val, "") != 0);
+	bool vm_has_sharedf = (strcmp(cfg[KEY_SHARED].val, "") != 0 && filetype(cfg[KEY_SHARED].val, FT_PATH));
 	bool vm_has_hddvirtio = stricmp(cfg[KEY_HDD_VIRTIO].val, "yes")==0;
-	bool vm_has_network = (strcmp(cfg[KEY_NET].val, "") != 0 );
+	bool vm_has_network = (strcmp(cfg[KEY_NET].val, "no") != 0 );
+	bool vm_has_fwd_ports = strcmp(cfg[KEY_FWD_PORTS].val, "no") != 0;
+	bool vm_has_ipv4 = stricmp(cfg[KEY_IPV4].val, "yes")==0;
+	bool vm_has_ipv6 = stricmp(cfg[KEY_IPV6].val, "yes")==0;
 	vm_has_sharedf = vm_has_sharedf ? filetype(cfg[KEY_SHARED].val,FT_PATH) : 0;
 
 	if (strcmp(cfg[KEY_SYS].val, "x32") == 0) {
@@ -284,22 +289,28 @@ void program_build_cmd_line(char *vm_name, char *out_cmd) {
 		strcatx(out_cmd, vm_has_videoacc ? " -display gtk,gl=on" : " -display gtk,gl=off", NULL);
 	}
 
+	if (vm_has_network && !vm_has_ipv6 && !vm_has_ipv4) { fatal(ERR_NETCONF_IP); }
+	if (!vm_has_network && vm_has_sharedf) { fatal(ERR_SHAREDF); }
 	if (vm_has_network) {
-		strcatx(out_cmd, " -nic user,model=", cfg[KEY_NET].val, NULL);
-		if(vm_has_sharedf) { strcatx(out_cmd, ",smb=", cfg[KEY_SHARED].val, NULL); }
-		if (strcmp(cfg[KEY_FWD_PORTS].val, "no") != 0) {
-			char* cfg_v_c = strdup(cfg[KEY_FWD_PORTS].val);
-			if (strchr(cfg_v_c, ':') != NULL) { // If have fwd_ports=<HostPort>:<GuestPort>
-				char *fwd_ports_tk = strtok(cfg_v_c, ":");
-				char fwd_port_a[16], fwd_port_b[16];
-				for (int i = 0; fwd_ports_tk && i<2; i++) {
-					strcpy(i == 0 ? fwd_port_a : fwd_port_b, fwd_ports_tk);
-					fwd_ports_tk = strtok(NULL, ":");
-				}
-				strcatx(out_cmd,",hostfwd=tcp::",fwd_port_a,"-:",fwd_port_b,",hostfwd=udp::",fwd_port_a, "-:",fwd_port_b, NULL);
-			} else { // Else use the same port for Host and Guest.
-				strcatx(out_cmd,",hostfwd=tcp::",cfg_v_c,"-:",cfg_v_c,",hostfwd=udp::",cfg_v_c, "-:",cfg_v_c, NULL);
+		strcatx(out_cmd,
+				" -nic user,model=", cfg[KEY_NET].val,
+				vm_has_ipv4 ? ",ipv4=on" : ",ipv4=off",
+				vm_has_ipv6 ? ",ipv6=on" : ",ipv6=off",
+				NULL);
+	}
+	if (vm_has_network && vm_has_sharedf) { strcatx(out_cmd, ",smb=", cfg[KEY_SHARED].val, NULL); }
+	if (vm_has_network && vm_has_fwd_ports) {
+		char fwd_port_a[16], fwd_port_b[16];
+		char* cfg_v_c = strdup(cfg[KEY_FWD_PORTS].val);
+		if (strchr(cfg_v_c, ':') != NULL) { // If have fwd_ports=<HostPort>:<GuestPort>
+			char *fwd_ports_tk = strtok(cfg_v_c, ":");
+			for (int i = 0; fwd_ports_tk && i<2; i++) {
+				strcpy(i == 0 ? fwd_port_a : fwd_port_b, fwd_ports_tk);
+				fwd_ports_tk = strtok(NULL, ":");
 			}
+			strcatx(out_cmd,",hostfwd=tcp::",fwd_port_a,"-:",fwd_port_b,",hostfwd=udp::",fwd_port_a, "-:",fwd_port_b, NULL);
+		} else { // Else use the same port for Host and Guest.
+			strcatx(out_cmd,",hostfwd=tcp::",cfg_v_c,"-:",cfg_v_c,",hostfwd=udp::",cfg_v_c, "-:",cfg_v_c, NULL);
 		}
 	}
 
