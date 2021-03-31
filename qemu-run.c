@@ -1,54 +1,4 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdarg.h>
-#include <stdbool.h>
-#include <string.h>
-#include <ctype.h>
-
-#if defined(__unix__) || defined(__unix) || defined(unix)
-#define __NIX__
-#define PSEP ":"
-#define DSEP "/"
-#include <unistd.h>
-#ifdef __linux__
-#include <linux/limits.h>
-#else
-#include <limits.h>
-#endif // __linux__
-#else // !__NIX__
-#if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
-#define __WINDOWS__
-#define PSEP ";"
-#define DSEP "\\"
-#include <io.h>
-#include <limits.h>
-#endif // __WINDOWS__
-#endif // __NIX__
-#include <sys/stat.h>
-#include <sys/types.h>
-
-#ifdef DEBUG
-#ifdef __GNUC__
-#define dprint() printf("%s (%d) %s\n",__FILE__,__LINE__,__FUNCTION__);
-#else
-#define dprint() printf("%s (%d) %s\n",__FILE__,__LINE__);
-#endif
-#else // !DEBUG
-#define dprint()
-#endif // DEBUG
-
-#define BUFF_AVG 128
-#define BUFF_MAX BUFF_AVG*32
-
-#ifndef stricmp //GCC is weird sometimes it doesn't includes this..
-#include <strings.h>
-#define stricmp(x,y) strcasecmp(x,y)
-#endif
-
-#include "config.h"
-#include "liblucie/lucie_lib.h"
-
-#define mzero_ca(a) memset(a, 0, sizeof(a));
+#include "imports.h"
 
 enum {ERR_UNKOWN,ERR_ARGS,ERR_ENV,ERR_CHDIR_VM_DIR,ERR_OPEN_CONFIG,ERR_FIND_CONFIG,ERR_SYS,ERR_NETCONF_IP,ERR_SHAREDF,ERR_EXEC,ERR_ENDLIST};
 void fatal(unsigned int errcode) {
@@ -99,27 +49,28 @@ int filetype(const char *fpath,int type) {
 	return ret=(type)?ret==type:ret;
 }
 
-#ifdef __WINDOWS__ // For now I only need this function on Windows.
-bool get_binary_full_path(char *bin_fname,char *out_bin_fpath,char *out_dir) {
+bool get_binary_full_path(char *bin_fname, char *out_bin_fpath, char *out_dir) {
 	dprint();
-	bool found = 0;
-	char fp_b[PATH_MAX]={0}, dir_pb[PATH_MAX]={0}, *env;
+	bool found = 0, have_slice = 0;
+	size_t slice_len = 0;
+	char fp_b[PATH_MAX], dir_pb[PATH_MAX], *dir_pq, *env, *slice;
 	if (! (env=getenv("PATH"))){ fatal(ERR_EXEC); }
-	char *dir_p = strtok(env, PSEP);
-	while (dir_p && !found) {
-		strcpy(dir_pb, dir_p);
-		char* dir_pq = l_str_rm_surrc(dir_pb, '\"');
+	slice = env;
+	do {
+		have_slice = l_str_slice(slice, PSEP_C, &slice_len);
+		mzero_ca(fp_b); mzero_ca(dir_pb);
+		strncpy(dir_pb, slice, slice_len);
+		dir_pq = l_str_rm_surrc(dir_pb, '\"');
 		l_str_catx(fp_b, dir_pq, DSEP, bin_fname, NULL); found = filetype(fp_b, FT_FILE);
 		if (!found) { mzero_ca(fp_b); l_str_catx(fp_b, dir_pq, DSEP, bin_fname, ".exe", NULL); found = filetype(fp_b, FT_FILE); }
 		if (!found) { mzero_ca(fp_b); l_str_catx(fp_b, dir_pq, DSEP, bin_fname, ".bat", NULL); found = filetype(fp_b, FT_FILE); }
 		if (!found) { mzero_ca(fp_b); l_str_catx(fp_b, dir_pq, DSEP, bin_fname, ".com", NULL); found = filetype(fp_b, FT_FILE); }
 		if (found && out_dir) { strcpy(out_dir, dir_pq); }
-		dir_p = strtok(NULL, PSEP);
-	}
-	if(found&&out_bin_fpath) { strcpy(out_bin_fpath,fp_b); }
+		slice = slice + slice_len + 1;
+	} while (have_slice && !found);
+	if (found && out_bin_fpath) { strcpy(out_bin_fpath, fp_b); }
 	return found;
 }
-#endif
 
 void program_load_config(const char *fpath) {
 	dprint();
@@ -128,20 +79,23 @@ void program_load_config(const char *fpath) {
 	printf("fpath=%s\n",fpath);
 #endif
 	if(!fptr) { fatal(ERR_OPEN_CONFIG); }
-	char line[BUFF_AVG*2]={0},key[BUFF_AVG]={0},val[BUFF_AVG]={0};
+	char line[BUFF_AVG*2]={0}, key[BUFF_AVG], val[BUFF_AVG], *slice;
+	size_t slice_len = 0;
+	int i = 0, have_slice = 0;
 	while(fgets(line,BUFF_AVG*2,fptr)) {
 		if(!strchr(line,'=') || line[0]=='#') { continue; }
 		size_t len=strlen(line);
 		if(len&&line[len-2]=='\r') { len--; line[len-1]='\0'; } 
 		if(len&&line[len-1]=='\n') { len--; line[len]='\0'; }
 		if(len<3) { continue; }
-		char* slice=strtok(line,"=");
-		for(int i=0; slice&&i<2; i++) {
-			if(i==0) { strcpy(key,slice); }
-			if(i==1) { strcpy(val,slice); break; }
-			slice=strtok(NULL,"=");
-		}
-		sym_put_kv(key,val);
+		slice = &line[0]; i = 0;
+		do {
+			have_slice = l_str_slice(slice, '=', &slice_len);
+			if(i==0) { mzero_ca(key); strncpy(key, slice, slice_len);}
+			if(i==1) { mzero_ca(val); strncpy(val, slice, slice_len); break; }
+			slice = slice + slice_len + 1; i++;
+		} while(have_slice && i<2);
+		sym_put_kv(key, val);
 	}
 	fclose(fptr);
 }
@@ -236,21 +190,25 @@ void program_build_cmd_line(char *vm_name, char *out_cmd) {
 	}
 	if (vm_has_network && vm_has_sharedf) { l_str_catx(out_cmd, ",smb=", cfg[KEY_SHARED].val, NULL); }
 	if (vm_has_network && vm_has_fwd_ports) {
-		char fwd_port_a[16], fwd_port_b[16];
-		char* cfg_v_c = l_str_dup(cfg[KEY_FWD_PORTS].val);
-		if (strchr(cfg_v_c, ':') != NULL) { // If have fwd_ports=<HostPort>:<GuestPort>
-			char *fwd_ports_tk = strtok(cfg_v_c, ":");
-			for (int i = 0; fwd_ports_tk && i<2; i++) {
-				strcpy(i == 0 ? fwd_port_a : fwd_port_b, fwd_ports_tk);
-				fwd_ports_tk = strtok(NULL, ":");
-			}
+		char fwd_port_a[6], fwd_port_b[6], *slice;
+		if (strchr(cfg[KEY_FWD_PORTS].val, ':') != NULL) { // If have fwd_ports=<HostPort>:<GuestPort>
+			int i = 0, have_slice = 0;
+			size_t slice_len;
+			slice = &cfg[KEY_FWD_PORTS].val[0];
+			do {
+				have_slice = l_str_slice(slice, ':', &slice_len);
+				if(i==0) { mzero_ca(fwd_port_a); strncpy(fwd_port_a, slice, slice_len); }
+				if(i==1) { mzero_ca(fwd_port_b); strncpy(fwd_port_b, slice, slice_len); }
+				slice = slice + slice_len + 1; i++;
+			} while(have_slice && i<2);
 			l_str_catx(out_cmd,",hostfwd=tcp::",fwd_port_a,"-:",fwd_port_b,",hostfwd=udp::",fwd_port_a, "-:",fwd_port_b, NULL);
 		} else { // Else use the same port for Host and Guest.
-			l_str_catx(out_cmd,",hostfwd=tcp::",cfg_v_c,"-:",cfg_v_c,",hostfwd=udp::",cfg_v_c, "-:",cfg_v_c, NULL);
+			char *port = cfg[KEY_FWD_PORTS].val;
+			l_str_catx(out_cmd,",hostfwd=tcp::",port,"-:",port,",hostfwd=udp::",port, "-:",port, NULL);
 		}
 	}
 
-	if (filetype((const char*) cfg[KEY_FLOPPY].val,FT_FILE)) {
+	if (filetype(cfg[KEY_FLOPPY].val,FT_FILE)) {
 		l_int_to_str(drive_index, drive_str);
 		l_str_catx(out_cmd, " -drive index=", drive_str, ",file=", cfg[KEY_FLOPPY].val, ",format=raw", NULL);
 		drive_index++;
