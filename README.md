@@ -4,7 +4,7 @@ Quickly launch [QEMU](https://www.qemu.org/) virtual machines from your terminal
 # How to install: Unix-like systems
 For doing this, simple clone this repo, and build it, you will need tools like [git](https://git-scm.com/), a [compiler](https://gcc.gnu.org/)  and [make](https://www.gnu.org/software/make/).
 
-	git clone https://github.com/lucie-cupcakes/qemu-run.git
+	git clone --recurse-submodules https://github.com/lucie-cupcakes/qemu-run.git
 	cd qemu-run
 	make
 	sudo mv qemu-run.bin /usr/bin/qemu-run

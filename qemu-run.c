@@ -45,65 +45,10 @@
 #define stricmp(x,y) strcasecmp(x,y)
 #endif
 
-#if defined(_SVID_SOURCE)||defined(_BSD_SOURCE)||_XOPEN_SOURCE >= 500||defined(_XOPEN_SOURCE)&&defined(_XOPEN_SOURCE_EXTENDED)
-#else
-char *strdup(const char *s) {
-	size_t n=strlen(s)+1;
-	char *p=malloc(n);
-	return p ? memcpy(p,s,n) : p;
-}
-#endif
-
 #include "config.h"
+#include "liblucie/lucie_lib.h"
 
 #define mzero_ca(a) memset(a, 0, sizeof(a));
-
-char *strcatx(char *str, ...) {
-	va_list ap;
-	int dl,sl;
-	char *arg;
-	for(dl=0;str[dl];dl++);
-	va_start(ap,str);
-	while ((arg = va_arg(ap,char*))) {
-		for(sl=0;arg[sl];sl++) { str[dl++]=arg[sl]; }
-	}
-	va_end(ap);
-	str[dl]=0;
-	return str;
-}
-
-char *bcitoa(char *sequence,int base,int num,char *out_buff) {
-	char *dflt="0123456789ABCDEF";
-	char *str,*vals;
-	int max=1,len=1,idx=0;
-	vals=(sequence==NULL)?dflt:sequence;
-	while((max*base)<num) {max*=base;len++;}
-	if(out_buff) {
-	   str=out_buff;
-	} else {
-		str=(char *)calloc(1,len+1);
-	}
-	while(len--) {
-		str[idx++]=vals[(num/max)];
-		num-=(num/max)*max;
-		max/=base;
-   }
-   return str;
-}
-
-int bcatoi(char *sequence,int base,char *str) {
-   char *dflt="0123456789ABCDEF";
-   char *val;
-   int num=0,idx;
-   val=(sequence==NULL)?dflt:sequence;
-   while(*str) {
-      for(idx=0;idx<base && *str!=val[idx];idx++);
-      if(idx==base) {num=0;break;}
-      num=(num*base)+idx;
-      str++;
-   }
-   return num;
-}
 
 enum {ERR_UNKOWN,ERR_ARGS,ERR_ENV,ERR_CHDIR_VM_DIR,ERR_OPEN_CONFIG,ERR_FIND_CONFIG,ERR_SYS,ERR_NETCONF_IP,ERR_SHAREDF,ERR_EXEC,ERR_ENDLIST};
 void fatal(unsigned int errcode) {
@@ -139,7 +84,7 @@ int sym_hash_generate(char *str) {
 bool sym_put_kv(char *key,char *val) {
 	int cnt=0,ret=0,hash=sym_hash_generate(key);
 	for(;cnt<KEY_ENDLIST;cnt++) {
-		if(cfg[cnt].hash==hash) { ret=1;cfg[cnt].val=strdup(val); }
+		if(cfg[cnt].hash==hash) { ret=1;cfg[cnt].val=l_str_dup(val); }
 	}
 	return ret;
 }
@@ -154,15 +99,6 @@ int filetype(const char *fpath,int type) {
 	return ret=(type)?ret==type:ret;
 }
 
-char* cstr_remove_quotes(char* c) {
-	dprint();
-	size_t len=strlen(c);
-	if(c[len-1]=='\"'&&c[0]=='\"') {
-		c[len-1]='\0';
-		return c+1;
-	}else{ return c; }
-}
-
 #ifdef __WINDOWS__ // For now I only need this function on Windows.
 bool get_binary_full_path(char *bin_fname,char *out_bin_fpath,char *out_dir) {
 	dprint();
@@ -172,11 +108,11 @@ bool get_binary_full_path(char *bin_fname,char *out_bin_fpath,char *out_dir) {
 	char *dir_p = strtok(env, PSEP);
 	while (dir_p && !found) {
 		strcpy(dir_pb, dir_p);
-		char* dir_pq = cstr_remove_quotes(dir_pb);
-		strcatx(fp_b, dir_pq, DSEP, bin_fname, NULL); found = filetype(fp_b, FT_FILE);
-		if (!found) { mzero_ca(fp_b); strcatx(fp_b, dir_pq, DSEP, bin_fname, ".exe", NULL); found = filetype(fp_b, FT_FILE); }
-		if (!found) { mzero_ca(fp_b); strcatx(fp_b, dir_pq, DSEP, bin_fname, ".bat", NULL); found = filetype(fp_b, FT_FILE); }
-		if (!found) { mzero_ca(fp_b); strcatx(fp_b, dir_pq, DSEP, bin_fname, ".com", NULL); found = filetype(fp_b, FT_FILE); }
+		char* dir_pq = l_str_rm_surrc(dir_pb, '\"');
+		l_str_catx(fp_b, dir_pq, DSEP, bin_fname, NULL); found = filetype(fp_b, FT_FILE);
+		if (!found) { mzero_ca(fp_b); l_str_catx(fp_b, dir_pq, DSEP, bin_fname, ".exe", NULL); found = filetype(fp_b, FT_FILE); }
+		if (!found) { mzero_ca(fp_b); l_str_catx(fp_b, dir_pq, DSEP, bin_fname, ".bat", NULL); found = filetype(fp_b, FT_FILE); }
+		if (!found) { mzero_ca(fp_b); l_str_catx(fp_b, dir_pq, DSEP, bin_fname, ".com", NULL); found = filetype(fp_b, FT_FILE); }
 		if (found && out_dir) { strcpy(out_dir, dir_pq); }
 		dir_p = strtok(NULL, PSEP);
 	}
@@ -271,9 +207,9 @@ void program_build_cmd_line(char *vm_name, char *out_cmd) {
 	} else { fatal(ERR_SYS); }
 	
 	if(vm_has_acc_enabled) { strcat(out_cmd, " --enable-kvm"); }
-	if(vm_has_name) { strcatx(out_cmd, " -name ",  vm_name, NULL); }
+	if(vm_has_name) { l_str_catx(out_cmd, " -name ",  vm_name, NULL); }
 
-	strcatx(out_cmd,
+	l_str_catx(out_cmd,
 		" -cpu ", cfg[KEY_CPU].val,
 		" -smp ", cfg[KEY_CORES].val,
 		" -m ", cfg[KEY_MEM].val,
@@ -281,54 +217,54 @@ void program_build_cmd_line(char *vm_name, char *out_cmd) {
 		" -usb -device usb-tablet -vga ", cfg[KEY_VGA].val,
 		NULL);
 
-	if(vm_has_audio) { strcatx(out_cmd, " -soundhw ", cfg[KEY_SND].val, NULL); }
+	if(vm_has_audio) { l_str_catx(out_cmd, " -soundhw ", cfg[KEY_SND].val, NULL); }
 
 	if (vm_is_headless) {
-		strcatx(out_cmd, " -display none -monitor telnet:127.0.0.1:55555,server,nowait -vnc 127.0.0.1:0", vm_has_vncpwd ? ",password" : "", NULL);
+		l_str_catx(out_cmd, " -display none -monitor telnet:127.0.0.1:55555,server,nowait -vnc 127.0.0.1:0", vm_has_vncpwd ? ",password" : "", NULL);
 	} else {
-		strcatx(out_cmd, vm_has_videoacc ? " -display gtk,gl=on" : " -display gtk,gl=off", NULL);
+		l_str_catx(out_cmd, vm_has_videoacc ? " -display gtk,gl=on" : " -display gtk,gl=off", NULL);
 	}
 
 	if (vm_has_network && !vm_has_ipv6 && !vm_has_ipv4) { fatal(ERR_NETCONF_IP); }
 	if (!vm_has_network && vm_has_sharedf) { fatal(ERR_SHAREDF); }
 	if (vm_has_network) {
-		strcatx(out_cmd,
+		l_str_catx(out_cmd,
 				" -nic user,model=", cfg[KEY_NET].val,
 				vm_has_ipv4 ? ",ipv4=on" : ",ipv4=off",
 				vm_has_ipv6 ? ",ipv6=on" : ",ipv6=off",
 				NULL);
 	}
-	if (vm_has_network && vm_has_sharedf) { strcatx(out_cmd, ",smb=", cfg[KEY_SHARED].val, NULL); }
+	if (vm_has_network && vm_has_sharedf) { l_str_catx(out_cmd, ",smb=", cfg[KEY_SHARED].val, NULL); }
 	if (vm_has_network && vm_has_fwd_ports) {
 		char fwd_port_a[16], fwd_port_b[16];
-		char* cfg_v_c = strdup(cfg[KEY_FWD_PORTS].val);
+		char* cfg_v_c = l_str_dup(cfg[KEY_FWD_PORTS].val);
 		if (strchr(cfg_v_c, ':') != NULL) { // If have fwd_ports=<HostPort>:<GuestPort>
 			char *fwd_ports_tk = strtok(cfg_v_c, ":");
 			for (int i = 0; fwd_ports_tk && i<2; i++) {
 				strcpy(i == 0 ? fwd_port_a : fwd_port_b, fwd_ports_tk);
 				fwd_ports_tk = strtok(NULL, ":");
 			}
-			strcatx(out_cmd,",hostfwd=tcp::",fwd_port_a,"-:",fwd_port_b,",hostfwd=udp::",fwd_port_a, "-:",fwd_port_b, NULL);
+			l_str_catx(out_cmd,",hostfwd=tcp::",fwd_port_a,"-:",fwd_port_b,",hostfwd=udp::",fwd_port_a, "-:",fwd_port_b, NULL);
 		} else { // Else use the same port for Host and Guest.
-			strcatx(out_cmd,",hostfwd=tcp::",cfg_v_c,"-:",cfg_v_c,",hostfwd=udp::",cfg_v_c, "-:",cfg_v_c, NULL);
+			l_str_catx(out_cmd,",hostfwd=tcp::",cfg_v_c,"-:",cfg_v_c,",hostfwd=udp::",cfg_v_c, "-:",cfg_v_c, NULL);
 		}
 	}
 
 	if (filetype((const char*) cfg[KEY_FLOPPY].val,FT_FILE)) {
-		bcitoa(NULL, 10, drive_index, drive_str);
-		strcatx(out_cmd, " -drive index=", drive_str, ",file=", cfg[KEY_FLOPPY].val, ",format=raw", NULL);
+		l_int_to_str(drive_index, drive_str);
+		l_str_catx(out_cmd, " -drive index=", drive_str, ",file=", cfg[KEY_FLOPPY].val, ",format=raw", NULL);
 		drive_index++;
 	}
 
 	if (filetype(cfg[KEY_CDROM].val,FT_FILE)) {
-		bcitoa(NULL, 10, drive_index, drive_str);
-		strcatx(out_cmd, " -drive index=", drive_str, ",file=", cfg[KEY_CDROM].val, ",media=cdrom", NULL);
+		l_int_to_str(drive_index, drive_str);
+		l_str_catx(out_cmd, " -drive index=", drive_str, ",file=", cfg[KEY_CDROM].val, ",media=cdrom", NULL);
 		drive_index++;
 	}
 
 	if (filetype(cfg[KEY_DISK].val,FT_FILE)) {
-		bcitoa(NULL, 10, drive_index, drive_str);
-		strcatx(out_cmd, " -drive index=", drive_str, ",file=", cfg[KEY_DISK].val, vm_has_hddvirtio ? ",if=virtio" : "", NULL);
+		l_int_to_str(drive_index, drive_str);
+		l_str_catx(out_cmd, " -drive index=", drive_str, ",file=", cfg[KEY_DISK].val, vm_has_hddvirtio ? ",if=virtio" : "", NULL);
 		drive_index++;
 	}
 
@@ -339,7 +275,7 @@ void program_build_cmd_line(char *vm_name, char *out_cmd) {
 	char qemu_binary_full_path[BUFF_AVG]={0};
 	char *qemu_binary_full_path_p = &qemu_binary_full_path[0];
 	if (! get_binary_full_path(qemu_binary_file, NULL, qemu_binary_full_path_p)) { fatal(ERR_EXEC); }
-	strcatx(out_cmd, " -L \"", qemu_binary_full_path_p, "\"", NULL);
+	l_str_catx(out_cmd, " -L \"", qemu_binary_full_path_p, "\"", NULL);
 #else
 	if (vm_has_rngdev) { strcat(out_cmd, " -object rng-random,id=rng0,filename=/dev/random -device virtio-rng-pci,rng=rng0"); }
 #endif
@@ -357,9 +293,9 @@ void program_find_vm_and_chdir(int argc,char **argv,char *out_vm_name,char *out_
 	env_dir_p = strtok(env, PSEP);
 	while (env_dir_p && !vm_dir_exists) {
 		strcpy(env_dir, env_dir_p);
-		char* env_dir_q = cstr_remove_quotes(env_dir);
+		char* env_dir_q = l_str_rm_surrc(env_dir, '\"');
 		mzero_ca(vm_dir);
-		strcatx(vm_dir, env_dir_q, DSEP, out_vm_name, NULL);
+		l_str_catx(vm_dir, env_dir_q, DSEP, out_vm_name, NULL);
 		vm_dir_exists = filetype(vm_dir,FT_PATH);
 		env_dir_p = strtok(NULL, PSEP);
 	}
