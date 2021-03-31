@@ -1,0 +1,3 @@
+[submodule "liblucie"]
+	path = liblucie
+	url = https://github.com/lucie-cupcakes/liblucie.git
