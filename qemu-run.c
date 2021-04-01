@@ -241,22 +241,25 @@ void program_build_cmd_line(char *vm_name, char *out_cmd) {
 }
 
 void program_find_vm_and_chdir(int argc,char **argv,char *out_vm_name,char *out_vm_cfg_file) {
-	char vm_dir[PATH_MAX+1],env_dir[PATH_MAX]={0},*env,*env_dir_p;
-	bool vm_dir_exists=0,cfg_file_exists=0;
+	char vm_dir[PATH_MAX+1], env_dir[PATH_MAX]={0}, *env, *slice, *env_dir_q;
+	bool vm_dir_exists = 0, cfg_file_exists = 0, have_slice = 0;
+	size_t slice_len;
 	dprint();
 	if (argc < 2) { fatal(ERR_ARGS); }
 	strcpy(out_vm_name, argv[1]);
 	if (!(env = getenv("QEMURUN_VM_PATH"))) { fatal(ERR_ENV); }
 	if (strcmp(env, "") == 0) { fatal(ERR_ENV); }
-	env_dir_p = strtok(env, PSEP);
-	while (env_dir_p && !vm_dir_exists) {
-		strcpy(env_dir, env_dir_p);
-		char* env_dir_q = l_str_rm_surrc(env_dir, '\"');
+	slice = &env[0];
+	do {
+		have_slice = l_str_slice(slice, PSEP_C, &slice_len);
+		mzero_ca(env_dir);
 		mzero_ca(vm_dir);
+		strncpy(env_dir, slice, slice_len);
+		env_dir_q = l_str_rm_surrc(env_dir, '\"');
 		l_str_catx(vm_dir, env_dir_q, DSEP, out_vm_name, NULL);
-		vm_dir_exists = filetype(vm_dir,FT_PATH);
-		env_dir_p = strtok(NULL, PSEP);
-	}
+		vm_dir_exists = filetype(vm_dir, FT_PATH);
+		slice = slice + slice_len + 1;
+	} while(have_slice && !vm_dir_exists);
 	if(! vm_dir_exists) { fatal(ERR_ENV); }
 	if(chdir(vm_dir) != 0) { fatal(ERR_CHDIR_VM_DIR); }
 	strcpy(out_vm_cfg_file,"config"); cfg_file_exists=filetype(out_vm_cfg_file,FT_FILE);
