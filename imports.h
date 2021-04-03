@@ -1,12 +1,12 @@
 #ifndef QEMU_RUN_IMPORTS_H
 #define QEMU_RUN_IMPORTS_H
 
-#include <stdlib.h>
-#include <stdio.h>
+#include <ctype.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 
 #if defined(__unix__) || defined(__unix) || defined(unix)
 #define __NIX__
@@ -20,7 +20,7 @@
 #else
 #include <limits.h>
 #endif // __linux__
-#else // !__NIX__
+#else  // !__NIX__
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
 #define __WINDOWS__
 #define PSEP ";"
@@ -36,20 +36,20 @@
 
 #ifdef DEBUG
 #ifdef __GNUC__
-#define dprint() printf("%s (%d) %s\n",__FILE__,__LINE__,__FUNCTION__);
+#define dprint() printf("%s (%d) %s\n", __FILE__, __LINE__, __FUNCTION__);
 #else
-#define dprint() printf("%s (%d) %s\n",__FILE__,__LINE__);
+#define dprint() printf("%s (%d) %s\n", __FILE__, __LINE__);
 #endif
 #else // !DEBUG
 #define dprint()
 #endif // DEBUG
 
 #define BUFF_AVG 128
-#define BUFF_MAX BUFF_AVG*32
+#define BUFF_MAX BUFF_AVG * 32
 
-#ifndef stricmp //GCC is weird sometimes it doesn't includes this..
+#ifndef stricmp // GCC is weird sometimes it doesn't includes this..
 #include <strings.h>
-#define stricmp(x,y) strcasecmp(x,y)
+#define stricmp(x, y) strcasecmp(x, y)
 #endif
 
 #include "config.h"
