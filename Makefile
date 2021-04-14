@@ -2,13 +2,13 @@ CC ?= gcc
 CSTD = -std=c99 -Wall -Wextra
 
 ifdef DEBUG
-override CFLAGS ?= -g -Og -D DEBUG -mtune=generic -fsanitize=address,undefined
+override CFLAGS ?= -g -Og -D DEBUG -mtune=generic # -fsanitize=address,undefined
 else
 override CFLAGS ?= -s -Ofast -flto -mtune=native
 endif
 
 all: genhashes.bin liblucie.o qemu-run.bin
-.PHONY: clean
+.PHONY: clean format
 
 liblucie.o:
 	${CC} ${CSTD} ${CFLAGS} -c "liblucie/lucie_lib.c" -o liblucie.o
@@ -25,3 +25,7 @@ clean:
 	rm -rv *.o || test 1
 	rm -rv *.bin || test 1
 	rm -rv config.h || test 1
+
+format:
+	clang-format -i *.h
+	clang-format -i *.c
