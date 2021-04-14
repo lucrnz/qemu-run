@@ -8,6 +8,31 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef DEBUG
+#ifdef __GNUC__
+#define DPRINT_S()                                                             \
+    fprintf(stderr, "[DEBUG][%s %s:%d] Location reached.\n", __FUNCTION__,     \
+            __FILE__, __LINE__)
+#define DPRINT(...)                                                            \
+    fprintf(stderr, "[DEBUG][%s %s:%d] ", __FUNCTION__, __FILE__, __LINE__);   \
+    fprintf(stderr, __VA_ARGS__);                                              \
+    fprintf(stderr, "\n")
+#else
+#define DPRINT_S()                                                             \
+    fprintf(stderr, "[DEBUG][%s:%d]Location reached.\n", __FILE__, __LINE__);
+#define DPRINT(...)                                                            \
+    fprintf(stderr, "[DEBUG][%s:%d] ", __FILE__, __LINE__);                    \
+    fprintf(stderr, __VA_ARGS__);                                              \
+    fprintf(stderr, "\n")
+#endif // __GNUC__
+#else  // !DEBUG
+#define NDEBUG
+#define DPRINT_S()
+#define DPRINT(...)
+#endif // DEBUG
+
+#include <assert.h>
+
 #if defined(__unix__) || defined(__unix) || defined(unix)
 #define __NIX__
 #define PSEP ":"
@@ -33,16 +58,6 @@
 #endif // __NIX__
 #include <sys/stat.h>
 #include <sys/types.h>
-
-#ifdef DEBUG
-#ifdef __GNUC__
-#define dprint() printf("%s (%d) %s\n", __FILE__, __LINE__, __FUNCTION__);
-#else
-#define dprint() printf("%s (%d) %s\n", __FILE__, __LINE__);
-#endif
-#else // !DEBUG
-#define dprint()
-#endif // DEBUG
 
 #define BUFF_AVG 128
 #define BUFF_MAX BUFF_AVG * 32

@@ -13,6 +13,7 @@ enum {
     ERR_EXEC,
     ERR_ENDLIST
 };
+
 void fatal(unsigned int errcode) {
     char *errs[] = {
         "Unkown error.", // ERR_UNKOWN
@@ -27,7 +28,7 @@ void fatal(unsigned int errcode) {
         "Invalid configuration: VM has disabled network, and specified a "
         "shared folder. Enable network or disable the shared folder.",
         "There was an error trying to execute qemu. Is it installed?"};
-    dprint();
+    DPRINT_S();
     printf("There was an error in the program:\n\t%s.\n",
            errs[errcode < ERR_ENDLIST ? errcode : 0]);
     exit(1);
@@ -70,7 +71,7 @@ int filetype(const char *fpath, int type) {
 }
 
 bool get_binary_full_path(char *bin_fname, char *out_bin_fpath, char *out_dir) {
-    dprint();
+    DPRINT_S();
     bool found = 0, have_slice = 0;
     size_t slice_len = 0;
     char fp_b[PATH_MAX], dir_pb[PATH_MAX], *dir_pq, *env, *slice;
@@ -113,7 +114,7 @@ bool get_binary_full_path(char *bin_fname, char *out_bin_fpath, char *out_dir) {
 }
 
 void program_load_config(const char *fpath) {
-    dprint();
+    DPRINT_S();
     FILE *fptr = fopen(fpath, "r");
 #ifdef DEBUG
     printf("fpath=%s\n", fpath);
@@ -162,7 +163,7 @@ void program_load_config(const char *fpath) {
 }
 
 void program_set_default_cfg_values() {
-    dprint();
+    DPRINT_S();
 #ifdef __WINDOWS__
     sym_put_kv("acc", "no");
     sym_put_kv("cpu", "max");
@@ -214,7 +215,7 @@ void program_set_default_cfg_values() {
 void program_build_cmd_line(char *vm_name, char *out_cmd) {
     int drive_index = 0; // telnet_port = 55555; // @TODO: Get usable TCP port
     char drive_str[4] = {0};
-    dprint();
+    DPRINT_S();
 #ifdef __WINDOWS__
     char qemu_binary_file[64] = {0};
 #else
@@ -336,12 +337,34 @@ void program_build_cmd_line(char *vm_name, char *out_cmd) {
         drive_index++;
     }
 
-    if (filetype(cfg[KEY_DISK].val, FT_FILE)) {
-        l_int_to_str(drive_index, drive_str);
-        l_str_catx(out_cmd, " -drive index=", drive_str,
-                   ",file=", cfg[KEY_DISK].val,
-                   vm_has_hddvirtio ? ",if=virtio" : "", NULL);
-        drive_index++;
+    bool have_multiple_disks = strchr(cfg[KEY_DISK].val, ';');
+
+    if (!have_multiple_disks) {
+        DPRINT("Single hard disk detected");
+        if (filetype(cfg[KEY_DISK].val, FT_FILE)) {
+            l_int_to_str(drive_index, drive_str);
+            l_str_catx(out_cmd, " -drive index=", drive_str,
+                       ",file=", cfg[KEY_DISK].val,
+                       vm_has_hddvirtio ? ",if=virtio" : "", NULL);
+            drive_index++;
+        }
+    } else {
+        DPRINT("Multiple hard disks detected");
+        bool have_slice = 0;
+        size_t slice_len = 0;
+        char *slice = &cfg[KEY_DISK].val[0];
+        do {
+            have_slice = l_str_slice(slice, ';', &slice_len);
+            slice[slice_len] = 0;
+            if (filetype(slice, FT_FILE)) {
+                l_int_to_str(drive_index, drive_str);
+                l_str_catx(out_cmd, " -drive index=", drive_str,
+                           ",file=", slice,
+                           vm_has_hddvirtio ? ",if=virtio" : "", NULL);
+                drive_index++;
+            }
+            slice = slice + slice_len + 1;
+        } while (have_slice);
     }
 
 #ifdef __WINDOWS__
@@ -373,7 +396,7 @@ void program_find_vm_and_chdir(int argc, char **argv, char *out_vm_name,
                                *env_dir_q;
     bool vm_dir_exists = 0, cfg_file_exists = 0, have_slice = 0;
     size_t slice_len;
-    dprint();
+    DPRINT_S();
     if (argc < 2) {
         fatal(ERR_ARGS);
     }
@@ -414,7 +437,7 @@ void program_find_vm_and_chdir(int argc, char **argv, char *out_vm_name,
 
 int main(int argc, char **argv) {
     char cmd[BUFF_MAX], vm_name[BUFF_AVG], vm_cfg_file[BUFF_AVG];
-    dprint();
+    DPRINT_S();
     program_find_vm_and_chdir(argc, argv, vm_name, vm_cfg_file);
     program_set_default_cfg_values();
     program_load_config(vm_cfg_file);
