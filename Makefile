@@ -1,5 +1,5 @@
 CC ?= gcc
-CSTD = -std=c99 -Wall -Wextra
+CSTD = -std=c17 -Wall -Wextra
 
 ifdef DEBUG
 override CFLAGS ?= -g -Og -D DEBUG -mtune=generic # -fsanitize=address,undefined
