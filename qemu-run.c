@@ -11,6 +11,7 @@ enum {
     ERR_NETCONF_IP,
     ERR_SHAREDF,
     ERR_EXEC,
+    ERR_EFI_BIOS,
     ERR_ENDLIST
 };
 
@@ -27,7 +28,8 @@ void fatal(unsigned int errcode) {
         "disabled. Please enable at least one",
         "Invalid configuration: VM has disabled network, and specified a "
         "shared folder. Enable network or disable the shared folder.",
-        "There was an error trying to execute qemu. Is it installed?"};
+        "There was an error trying to execute qemu. Is it installed?",
+        "Cannot find OVMF bios path. Do you have the package installed?"};
     DPRINT_S();
     printf("There was an error in the program:\n\t%s.\n",
            errs[errcode < ERR_ENDLIST ? errcode : 0]);
@@ -168,6 +170,7 @@ void program_set_default_cfg_values() {
     sym_put_kv("acc", "no");
     sym_put_kv("cpu", "max");
     sym_put_kv("rng_dev", "no");
+    sym_put_kv("net", "e1000");
 #endif
     /* Because now qemu-run chdirs into vm_dir,
     it's not needed to append vm_dir to the filename. */
@@ -222,6 +225,7 @@ void program_build_cmd_line(char *vm_name, char *out_cmd) {
     bool vm_has_rngdev = stricmp(cfg[KEY_RNG_DEV].val, "yes") == 0;
 #endif
     bool vm_has_name = (strcmp(vm_name, "") != 0);
+    bool vm_is_efi = stricmp(cfg[KEY_EFI].val, "yes") == 0;
     bool vm_has_acc_enabled = stricmp(cfg[KEY_ACC].val, "yes") == 0;
     bool vm_has_vncpwd = (strcmp(cfg[KEY_VNC_PWD].val, "") != 0);
     bool vm_has_audio = stricmp(cfg[KEY_SND].val, "no") != 0;
@@ -258,6 +262,76 @@ void program_build_cmd_line(char *vm_name, char *out_cmd) {
     if (vm_has_name) {
         l_str_catx(out_cmd, " -name ", vm_name, NULL);
     }
+
+#ifndef __WINDOWS__
+    // This code is ugly, needs a refactor.
+    // Also I have no idea where OpenSUSE stores the ovmf file.
+    if (vm_is_efi) {
+        bool foundbios = 0;
+        char biospath[PATH_MAX];
+        int index = 0;
+        mzero_ca(biospath);
+        if (strcmp(cfg[KEY_SYS].val, "x32") == 0) {
+            while (foundbios == 0 && index < 3) {
+                const char *trypath;
+                switch (index) {
+                case 0:
+                    trypath =
+                        "/usr/share/OVMF/OVMF32_VARS_4M.fd"; // Debian / Ubuntu
+                    foundbios = filetype(trypath, FT_FILE);
+                    break;
+                case 1:
+                    trypath =
+                        "/usr/share/edk2/ovmf-ia32/OVMF_CODE.fd"; // RedHat /
+                                                                  // Fedora
+                    foundbios = filetype(trypath, FT_FILE);
+                    break;
+                case 2:
+                    trypath = "/usr/share/edk2-ovmf/ia32/OVMF.fd"; // ArchLinux
+                    foundbios = filetype(trypath, FT_FILE);
+                    break;
+                }
+                if (foundbios) {
+                    strcpy(biospath, trypath);
+                }
+                index++;
+            }
+        } else if (strcmp(cfg[KEY_SYS].val, "x64") == 0) {
+            while (foundbios == 0 && index < 4) {
+                const char *trypath;
+                switch (index) {
+                case 0:
+                    trypath = "/usr/share/OVMF/OVMF.fd"; // Alpine Linux
+                    foundbios = filetype(trypath, FT_FILE);
+                    break;
+                case 1:
+                    trypath = "/usr/share/OVMF/OVMF_CODE.fd"; // Debian / Ubuntu
+                    foundbios = filetype(trypath, FT_FILE);
+                    break;
+                case 2:
+                    trypath =
+                        "/usr/share/edk2/ovmf/OVMF_CODE.fd"; // RedHat / Fedora
+                    foundbios = filetype(trypath, FT_FILE);
+                    break;
+                case 3:
+                    trypath = "/usr/share/edk2-ovmf/x64/OVMF.fd"; // ArchLinux
+                    foundbios = filetype(trypath, FT_FILE);
+                    break;
+                }
+                if (foundbios) {
+                    strcpy(biospath, trypath);
+                }
+                index++;
+            }
+        }
+
+        if (foundbios) {
+            l_str_catx(out_cmd, " --bios ", biospath, NULL);
+        } else {
+            fatal(ERR_EFI_BIOS);
+        }
+    }
+#endif
 
     l_str_catx(out_cmd, " -cpu ", cfg[KEY_CPU].val, " -smp ",
                cfg[KEY_CORES].val, " -m ", cfg[KEY_MEM].val,
