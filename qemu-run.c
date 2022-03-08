@@ -264,69 +264,37 @@ void program_build_cmd_line(char *vm_name, char *out_cmd) {
     }
 
 #ifndef __WINDOWS__
-    // This code is ugly, needs a refactor.
-    // Also I have no idea where OpenSUSE stores the ovmf file.
     if (vm_is_efi) {
-        bool foundbios = 0;
-        char biospath[PATH_MAX];
+        int foundbios = 0;
         int index = 0;
-        mzero_ca(biospath);
-        if (strcmp(cfg[KEY_SYS].val, "x32") == 0) {
-            while (foundbios == 0 && index < 3) {
-                const char *trypath;
-                switch (index) {
-                case 0:
-                    trypath =
-                        "/usr/share/OVMF/OVMF32_VARS_4M.fd"; // Debian / Ubuntu
-                    foundbios = filetype(trypath, FT_FILE);
-                    break;
-                case 1:
-                    trypath =
-                        "/usr/share/edk2/ovmf-ia32/OVMF_CODE.fd"; // RedHat /
-                                                                  // Fedora
-                    foundbios = filetype(trypath, FT_FILE);
-                    break;
-                case 2:
-                    trypath = "/usr/share/edk2-ovmf/ia32/OVMF.fd"; // ArchLinux
-                    foundbios = filetype(trypath, FT_FILE);
-                    break;
-                }
-                if (foundbios) {
-                    strcpy(biospath, trypath);
-                }
-                index++;
-            }
-        } else if (strcmp(cfg[KEY_SYS].val, "x64") == 0) {
-            while (foundbios == 0 && index < 4) {
-                const char *trypath;
-                switch (index) {
-                case 0:
-                    trypath = "/usr/share/OVMF/OVMF.fd"; // Alpine Linux
-                    foundbios = filetype(trypath, FT_FILE);
-                    break;
-                case 1:
-                    trypath = "/usr/share/OVMF/OVMF_CODE.fd"; // Debian / Ubuntu
-                    foundbios = filetype(trypath, FT_FILE);
-                    break;
-                case 2:
-                    trypath =
-                        "/usr/share/edk2/ovmf/OVMF_CODE.fd"; // RedHat / Fedora
-                    foundbios = filetype(trypath, FT_FILE);
-                    break;
-                case 3:
-                    trypath = "/usr/share/edk2-ovmf/x64/OVMF.fd"; // ArchLinux
-                    foundbios = filetype(trypath, FT_FILE);
-                    break;
-                }
-                if (foundbios) {
-                    strcpy(biospath, trypath);
-                }
-                index++;
-            }
+        int maxbiosp = 10;
+        char **biospath = calloc(maxbiosp, sizeof(char *));
+
+        if ((strcmp(cfg[KEY_SYS].val, "x64") == 0)) {
+            DPRINT("[efi] Using x64 bios paths");
+            biospath[0] = "/usr/share/edk2-ovmf/x64/OVMF.fd";  // ArchLinux
+            biospath[1] = "/usr/share/OVMF/OVMF.fd";           // Debian/Ubuntu
+            biospath[2] = "/usr/share/OVMF/OVMF_CODE.fd";      // Alpine Linux
+            biospath[3] = "/usr/share/edk2/ovmf/OVMF_CODE.fd"; // RedHat/Fedora
+            biospath[4] = NULL;
+        } else {
+            DPRINT("[efi] Using x32 bios paths");
+            biospath[0] = "/usr/share/OVMF/OVMF32_VARS_4M.fd"; // Debian/Ubuntu
+            biospath[1] =
+                "/usr/share/edk2/ovmf-ia32/OVMF_CODE.fd";      // RedHat/Fedora
+            biospath[2] = "/usr/share/edk2-ovmf/ia32/OVMF.fd"; // ArchLinux
+            biospath[3] = NULL;
+        }
+
+        while (!foundbios && index < maxbiosp && biospath[index]) {
+            DPRINT("[efi] Trying bios = %s", biospath[index]);
+            foundbios = filetype(biospath[index], FT_FILE);
+            index++;
         }
 
         if (foundbios) {
-            l_str_catx(out_cmd, " --bios ", biospath, NULL);
+            l_str_catx(out_cmd, " --bios ", biospath[index - 1], NULL);
+            free(biospath);
         } else {
             fatal(ERR_EFI_BIOS);
         }
